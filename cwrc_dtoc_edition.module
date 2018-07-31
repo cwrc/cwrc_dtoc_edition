@@ -1,0 +1,202 @@
+<?php
+
+/**
+ * @file
+ * The cwrc_dtoc_edition module.
+ */
+
+define('CWRC_DTOC_EDITION_ISLANDORA_CONTENT_MODEL', 'cwrc:dtocCModel');
+define('CWRC_DTOC_EDITION_ISLANDORA_COLLECTION_PID', 'cwrc:dtocCollection');
+define('CWRC_DTOC_EDITION_SESSION_KEY', 'cwrc_dtoc_edition_collections');
+
+/**
+ * Implements hook_menu().
+ */
+function cwrc_dtoc_edition_menu() {
+  $items = array();
+
+  $items['dtoc-edition/files-selector/%islandora_object/%ctools_js'] = array(
+    'title' => 'Files selector',
+    'title callback' => 'cwrc_dtoc_edition_ctools_modal_collection_files_selector_title',
+    'title arguments' => array(2),
+    'page callback' => 'cwrc_dtoc_edition_ctools_modal_collection_files_selector',
+    'page arguments' => array(2, 3),
+    // Using the same access arguments as islandora/basic_collection/find
+    // collections_user allows users to search for collections.
+    'access callback' => TRUE,
+    // 'access arguments' => array(ISLANDORA_BASIC_COLLECTION_MIGRATE_COLLECTION_MEMBERS),
+    'file' => 'includes/dtoc_reveal.endpoint.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_islandora_required_objects().
+ */
+function cwrc_dtoc_edition_islandora_required_objects(IslandoraTuque $connection) {
+  // Build a thumbnail datastream.
+  $module_path = drupal_get_path('module', 'cwrc_dtoc_edition');
+  $repository = $connection->repository;
+  $root_pid = variable_get('islandora_repository_pid', 'islandora:root');
+
+  // Collection object.
+  $dtoc_collection = $repository->constructObject(CWRC_DTOC_EDITION_ISLANDORA_COLLECTION_PID);
+  $dtoc_collection->owner = 'fedoraAdmin';
+  $dtoc_collection->label = 'CWRC DToC Collection';
+  $dtoc_collection->models = 'islandora:collectionCModel';
+  $dtoc_collection->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $root_pid);
+  // Collection policy.
+  $cp = $dtoc_collection->constructDatastream('COLLECTION_POLICY', 'X');
+  $cp->label = 'Collection policy';
+  $cp->mimetype = 'application/xml';
+  $cp->setContentFromFile("$module_path/xml/cwrc_dtoc_collection_policy.xml", FALSE);
+  $dtoc_collection->ingestDatastream($cp);
+
+  // Document content model.
+  $dtoc_cmodel = $repository->constructObject(CWRC_DTOC_EDITION_ISLANDORA_CONTENT_MODEL);
+  $dtoc_cmodel->owner = 'fedoraAdmin';
+  $dtoc_cmodel->label = 'CWRC DToC Content Model';
+  $dtoc_cmodel->models = 'fedora-system:ContentModel-3.0';
+  // DS-COMPOSITE-MODEL.
+  $ds = $dtoc_cmodel->constructDatastream('DS-COMPOSITE-MODEL', 'X');
+  $ds->label = "DS-COMPOSITE-MODEL";
+  $ds->mimetype = 'application/xml';
+  $ds->setContentFromFile("$module_path/xml/cwrc_dtoc_ds_composite_model.xml", FALSE);
+  $dtoc_cmodel->ingestDatastream($ds);
+
+  $objects = array(
+    'cwrc_dtoc_edition' => array(
+      'title' => 'Islandora CWRC DToC',
+      'objects' => array(
+        $dtoc_collection,
+        $dtoc_cmodel,
+      ),
+    ),
+  );
+
+  return $objects;
+}
+
+/**
+ * Implements hook_xml_form_builder_form_associations().
+ */
+function cwrc_dtoc_edition_xml_form_builder_form_associations() {
+  return array(
+    'cwrc_dtoc_edition_mods_form' => array(
+      'content_model' => CWRC_DTOC_EDITION_ISLANDORA_CONTENT_MODEL,
+      'form_name' => '* CWRC born digital',
+      'dsid' => 'MODS',
+      'title_field' => array('titleInfo-information', 'titleInfo', 'title'),
+      'transform' => 'cleanup_mods.xsl',
+      'self_transform' => 'cleanup_mods.xsl',
+      'template' => FALSE,
+    ),
+  );
+}
+
+/**
+ * Implements hook_islandora_ingest_steps().
+ */
+function cwrc_dtoc_edition_cwrc_dtocCModel_islandora_ingest_steps(array $form_state) {
+  return array(
+    'cwrc_dtoc_edition_reveal' => array(
+      'weight' => 10,
+      'type' => 'form',
+      'form_id' => 'cwrc_dtoc_edition_reveal_form',
+      'module' => 'cwrc_dtoc_edition',
+      'file' => 'includes/dtoc_reveal.form.inc',
+    ),
+  );
+}
+
+/**
+ * Gets selected collection files from session.
+ *
+ * @param string $pid
+ *   The collection pid.
+ *
+ * @return array
+ *   The selected files.
+ */
+function cwrc_dtoc_edition_get_selected_collection_files_from_session($pid) {
+  return !empty($_SESSION[CWRC_DTOC_EDITION_SESSION_KEY][$pid]) ? $_SESSION[CWRC_DTOC_EDITION_SESSION_KEY][$pid] : array();
+}
+
+/**
+ * Sets selected collection files in the session.
+ *
+ * @param string $id
+ *   The object id.
+ * @param array $selected_files_ids
+ *   The selected files.
+ */
+function cwrc_dtoc_edition_set_selected_collection_files_in_session($id, $selected_files_ids) {
+  $_SESSION[CWRC_DTOC_EDITION_SESSION_KEY][$id] = array_keys($selected_files_ids);
+}
+
+/**
+ * Deletes a collection items from the session.
+ *
+ * @param string $id
+ *   The collection id.
+ */
+function cwrc_dtoc_edition_delete_selected_collection_files_from_session($id = '') {
+  if ($id) {
+    unset($_SESSION[CWRC_DTOC_EDITION_SESSION_KEY][$id]);
+  }
+  else {
+    unset($_SESSION[CWRC_DTOC_EDITION_SESSION_KEY]);
+  }
+}
+
+/**
+ * Helper functions.
+ */
+
+/**
+ * Gets child options for a collection object.
+ *
+ * @param \IslandoraFedoraObject $object
+ *   The object.
+ *
+ * @return array
+ *   The options.
+ */
+function _cwrc_dtoc_edition_get_collection_pid_options($object) {
+  module_load_include('inc', 'islandora_plotit', 'includes/voyant_helpers');
+  module_load_include('inc', 'islandora_cwrc_writer', 'includes/utilities');
+
+  $ri_result = NULL;
+  islandora_cwrc_voyant_get_members_via_ri($object, $ri_result);
+
+  $options = array();
+  if ($ri_result && count($ri_result) > 0) {
+    $pids = array_map(function ($ri_result) {
+      return $ri_result['object']['value'];
+    }, $ri_result);
+
+    foreach ($pids as $pid) {
+      $collection_child = islandora_object_load($pid);
+      if ($collection_child && _cwrc_dtoc_edition_collection_child_has_cwrc_document_cmodel($collection_child)) {
+        $options[$pid] = $collection_child->label;
+      }
+    }
+  }
+  return $options;
+}
+
+/**
+ * Checks if a given object has CWRC document CModel.
+ *
+ * @param \FedoraObject $object
+ *   The object.
+ *
+ * @return bool
+ *   The check.
+ */
+function _cwrc_dtoc_edition_collection_child_has_cwrc_document_cmodel($object) {
+  $models = !empty($object->models) ? $object->models : array();
+  return in_array('cwrc:documentCModel', $models, TRUE);
+}

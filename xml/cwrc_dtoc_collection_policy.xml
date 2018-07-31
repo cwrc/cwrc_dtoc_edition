@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<collection_policy name="" xmlns="http://www.islandora.ca">
+  <content_models>
+    <content_model name="Islandora CWRC DToC Content Model" dsid="" namespace="cwrc" pid="cwrc:dtocCModel"/>
+  </content_models>
+  <search_terms>
+  </search_terms>
+  <relationship>isMemberOfCollection</relationship>
+</collection_policy>

@@ -1,0 +1,5 @@
+name = CWRC DToC Bridge
+description = 'Provides integration within cwrc and the voyant DToC'
+core = 7.x
+package = CWRC
+
