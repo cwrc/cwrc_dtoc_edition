@@ -49,6 +49,105 @@ function cwrc_dtoc_edition_reveal_form($form, &$form_state) {
     'actions' => _cwrc_dtoc_edition_reveal_form_get_search_collections_actions($form_state),
   );
 
+  // Configure corpus container.
+  $form['corpus_configuration'] = array(
+    '#type' => 'fieldset',
+    '#tree' => TRUE,
+    '#title' => t('Configure corpus'),
+    '#required' => TRUE,
+    '#collapsible' => FALSE,
+  );
+
+  // Copy from cwrc edition.
+  $search_title = t('search all DToC CWRC edition');
+  $form['corpus_configuration']['copy_cwrc_edition'] = array(
+    '#type' => 'container',
+    '#tree' => TRUE,
+    'optin' => array(
+      '#type' => 'checkbox',
+      '#title' => t('Copy from a CWRC DToC edition'),
+      '#states' => array(
+        // Disabling the optin checkbox for DToC CWRC Edition if dtoc edition OR
+        // custom configuration checked.
+        'disabled' => array(
+          array(':input[name="corpus_configuration[copy_dtoc_edition][optin]"]' => array('checked' => TRUE)),
+          array(':input[name="corpus_configuration[custom][optin]"]' => array('checked' => TRUE)),
+        ),
+      ),
+    ),
+    'search' => array(
+      '#type' => 'textfield',
+      '#title' => $search_title,
+      '#title_display' => 'invisible',
+      '#attributes' => array(
+        'placeholder' => $search_title,
+      ),
+      '#states' => array(
+        // Visible only if the optin above checked AND the other one's
+        // un-checked.
+        'visible' => array(
+          ':input[name="corpus_configuration[copy_cwrc_edition][optin]"]' => array('checked' => TRUE),
+          ':input[name="corpus_configuration[copy_dtoc_edition][optin]"]' => array('checked' => FALSE),
+          ':input[name="corpus_configuration[custom][optin]"]' => array('checked' => FALSE),
+        ),
+      ),
+    ),
+  );
+
+  // Copy from DToC edition.
+  $search_title = t('full Voyant URL');
+  $form['corpus_configuration']['copy_dtoc_edition'] = array(
+    '#type' => 'container',
+    '#tree' => TRUE,
+    'optin' => array(
+      '#type' => 'checkbox',
+      '#title' => t('Copy from any DToC edition'),
+      '#states' => array(
+        // Disabling the optin checkbox for DToC Edition if dtoc cwrc edition OR
+        // custom configuration checked.
+        'disabled' => array(
+          array(':input[name="corpus_configuration[copy_cwrc_edition][optin]"]' => array('checked' => TRUE)),
+          array(':input[name="corpus_configuration[custom][optin]"]' => array('checked' => TRUE)),
+        ),
+      ),
+    ),
+    'search' => array(
+      '#type' => 'textfield',
+      '#title' => $search_title,
+      '#title_display' => 'invisible',
+      '#attributes' => array(
+        'placeholder' => $search_title,
+      ),
+      '#states' => array(
+        // Visible only if the optin above checked AND the other one's
+        // un-checked.
+        'visible' => array(
+          ':input[name="corpus_configuration[copy_dtoc_edition][optin]"]' => array('checked' => TRUE),
+          ':input[name="corpus_configuration[copy_cwrc_edition][optin]"]' => array('checked' => FALSE),
+          ':input[name="corpus_configuration[custom][optin]"]' => array('checked' => FALSE),
+        ),
+      ),
+    ),
+  );
+
+  $form['corpus_configuration']['custom'] = array(
+    '#type' => 'container',
+    '#tree' => TRUE,
+    'optin' => array(
+      '#type' => 'checkbox',
+      '#title' => t('Configure'),
+      '#states' => array(
+        // Disabling the optin checkbox for custom if dtoc cwrc edition OR
+        // dtoc cwrc edition checked.
+        'disabled' => array(
+          array(':input[name="corpus_configuration[copy_cwrc_edition][optin]"]' => array('checked' => TRUE)),
+          array(':input[name="corpus_configuration[copy_dtoc_edition][optin]"]' => array('checked' => TRUE)),
+        ),
+      ),
+    ),
+    'options' => _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform($form_state),
+  );
+
   return $form;
 }
 
@@ -286,6 +385,84 @@ function _cwrc_dtoc_edition_reveal_form_get_search_collections_actions(&$form_st
   }
 
   return $actions;
+}
+
+/**
+ * Provides the custom corpus configuration subform.
+ *
+ * @param array $form_state
+ *   The form state.
+ *
+ * @return array
+ *   The subform structure.
+ */
+function _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform(&$form_state) {
+  $subform = array(
+    '#type' => 'container',
+    '#tree' => TRUE,
+    '#states' => array(
+      // Visible only if the optin for the custom corpus configuration is
+      // checked AND the other one's un-checked.
+      'visible' => array(
+        ':input[name="corpus_configuration[custom][optin]"]' => array('checked' => TRUE),
+        ':input[name="corpus_configuration[copy_dtoc_edition][optin]"]' => array('checked' => FALSE),
+        ':input[name="corpus_configuration[copy_cwrc_edition][optin]"]' => array('checked' => FALSE),
+      ),
+    ),
+  );
+  $subform['xpaths'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('xPaths'),
+    '#description' => t('Define XPath Expressions for any of the following:'),
+    '#tree' => TRUE,
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#require' => TRUE,
+  );
+  $subform['xpaths']['xmlcontent'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Content'),
+  );
+  $subform['xpaths']['xmltitle'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Title'),
+  );
+  $subform['xpaths']['xmlauthor'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Author'),
+  );
+  $subform['xpaths']['xmldocuments'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Documents'),
+  );
+
+  $subform['curation'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Curation <span class="light">(optional)</span>'),
+    '#tree' => TRUE,
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $subform['curation']['id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('curatorId'),
+    '#suffix' => t('<div class="">OR</div>'),
+  );
+  $subform['curation']['from'] = array(
+    '#type' => 'textfield',
+    '#title' => t('copy from'),
+    '#suffix' => t('<div class="">OR</div>'),
+  );
+  $subform['curation']['custom'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Custom curation'),
+    '#title_display' => 'invisible',
+    '#attributes' => array(
+      'placeholder' => t('Provide your own'),
+    ),
+  );
+
+  return $subform;
 }
 
 /**
