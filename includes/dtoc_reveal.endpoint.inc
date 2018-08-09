@@ -101,7 +101,7 @@ function cwrc_dtoc_edition_ctools_modal_collection_files_selector_form($form, &$
       '#type' => 'checkboxes',
       '#title' => t('Collection files'),
       '#options' => $collection_files,
-      '#default_value' => $default,
+      '#default_value' => array_keys($default),
       '#required' => TRUE,
     );
 
@@ -129,7 +129,7 @@ function cwrc_dtoc_edition_ctools_modal_collection_files_selector_form($form, &$
  * @param array $form_state
  *   The form state.
  */
-function cwrc_dtoc_edition_ctools_modal_collection_files_selector_form_validate($form, $form_state) {
+function cwrc_dtoc_edition_ctools_modal_collection_files_selector_form_validate(array $form, array $form_state) {
   $values = $form_state['values'];
   if (empty($values['collection_pid'])) {
     form_set_error(NULL, t('No valid collection provided'));
@@ -149,10 +149,12 @@ function cwrc_dtoc_edition_ctools_modal_collection_files_selector_form_validate(
  * @param array $form_state
  *   The form state.
  */
-function cwrc_dtoc_edition_ctools_modal_collection_files_selector_form_submit($form, &$form_state) {
+function cwrc_dtoc_edition_ctools_modal_collection_files_selector_form_submit(array $form, array &$form_state) {
   $values = $form_state['values'];
-  $collection_files = array_filter($values['collection_files']);
-  cwrc_dtoc_edition_set_selected_collection_files_in_session($values['collection_pid'], $collection_files);
+  $options = $form['collection_files']['#options'];
+  $selected = array_filter($values['collection_files']);
+
+  cwrc_dtoc_edition_set_selected_collection_files_in_session($values['collection_pid'], array_intersect_key($options, $selected));
 }
 
 function _cwrc_dtoc_edition_get_collapsiblock_js_settings($arguments) {

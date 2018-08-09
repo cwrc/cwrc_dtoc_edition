@@ -97,6 +97,86 @@ function cwrc_dtoc_edition_xml_form_builder_form_associations() {
 }
 
 /**
+ * Implements hook_form_alter().
+ */
+function cwrc_dtoc_edition_form_alter(&$form, &$form_state, $form_id) {
+//  dpm($form_id);
+  if ($form_id === 'xml_form_builder_preview') {
+//    dpm($form);
+//    dpm($form_state);
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for islandora_ingest_form.
+ */
+function cwrc_dtoc_edition_form_islandora_ingest_form_alter(&$form, &$form_state, $form_id) {
+  if (!empty($form_state['cwrc_dtoc_edition_reveal_form'])) {
+    $next_submit = !empty($form['next']) ? $form['next']['#submit'] : array();
+    $hidden_submit = !empty($form['hidden_next']) ? $form['hidden_next']['#submit'] : array();
+    $reveal_form_submit = 'cwrc_dtoc_edition_reveal_form_submit';
+    if ($next_submit === $hidden_submit && in_array($reveal_form_submit, $next_submit)) {
+      $form['next']['#submit'][] = 'cwrc_dtoc_edition_reveal_form_batch_submit';
+      $form['hidden_next']['#submit'][] = 'cwrc_dtoc_edition_reveal_form_batch_submit';
+    }
+  }
+}
+
+function cwrc_dtoc_edition_reveal_form_batch_submit($form, &$form_state) {
+  if (!empty($form_state['cwrc_dtoc_edition_reveal_ingested_object_id']) && !empty($form_state['cwrc_dtoc_edition_reveal_ingested_data'])) {
+    $object_id = $form_state['cwrc_dtoc_edition_reveal_ingested_object_id'];
+    $collections = $form_state['cwrc_dtoc_edition_reveal_ingested_data']['collections'];
+    $corpus_configurations = $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configurations'];
+
+    // Initializing the batch.
+    $batch = array(
+      'title' => t('Creating DTOC Edition...'),
+      'operations' => array(),
+      //    'finished' => 'cwrc_dtoc_edition_reveal_form_batch_finished',
+      'init_message' => t('Starting ...'),
+      'progress_message' => t('Processed @current out of @total.'),
+      'error_message' => t('An error occurred during the creation of the DToC Edition!'),
+      'progressive' => FALSE,
+      'file' => drupal_get_path('module', 'cwrc_dtoc_edition') . '/includes/dtoc_reveal.form.inc',
+    );
+
+    // Preparing source xml data for collections selected items.
+    $data = array(
+      'name' => 'dtocEdition',
+      1 => array('name' => 'sources'),
+      2 => array('name' => 'corpusConfiguration'),
+    );
+    $batch['operations'][] = array(
+      'cwrc_dtoc_edition_reveal_form_batch_prepare_collections_source_xml_data',
+      array($data, $collections),
+    );
+    // Preparing collections document files.
+    foreach ($collections as $collection_values) {
+      $batch['operations'][] = array(
+        'cwrc_dtoc_edition_reveal_form_batch_prepare_collection_items_datastream_files',
+        array($collection_values),
+      );
+    }
+    // Getting corpus metadata.
+    $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata', array());
+    // Deleting generated datastream files after generating corpus metadata.
+    foreach ($collections as $collection_values) {
+      $batch['operations'][] = array(
+        'cwrc_dtoc_edition_reveal_form_batch_delete_datastream_files',
+        array($collection_values),
+      );
+    }
+    // Preparing source xml data for corpus metadata and configurations..
+    $batch['operations'][] = array(
+      'cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_data',
+      array($corpus_configurations),
+    );
+    $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_generate_datastream_content', array($object_id));
+    batch_set($batch);
+  }
+}
+
+/**
  * Implements hook_islandora_ingest_steps().
  */
 function cwrc_dtoc_edition_cwrc_dtocCModel_islandora_ingest_steps(array $form_state) {
@@ -129,11 +209,11 @@ function cwrc_dtoc_edition_get_selected_collection_files_from_session($pid) {
  *
  * @param string $id
  *   The object id.
- * @param array $selected_files_ids
+ * @param array $selected_files
  *   The selected files.
  */
-function cwrc_dtoc_edition_set_selected_collection_files_in_session($id, $selected_files_ids) {
-  $_SESSION[CWRC_DTOC_EDITION_SESSION_KEY][$id] = array_keys($selected_files_ids);
+function cwrc_dtoc_edition_set_selected_collection_files_in_session($id, array $selected_files) {
+  $_SESSION[CWRC_DTOC_EDITION_SESSION_KEY][$id] = $selected_files;
 }
 
 /**
@@ -179,7 +259,9 @@ function _cwrc_dtoc_edition_get_collection_pid_options($object) {
 
     foreach ($pids as $pid) {
       $collection_child = islandora_object_load($pid);
-      if ($collection_child && _cwrc_dtoc_edition_collection_child_has_cwrc_document_cmodel($collection_child)) {
+      $is_cwrc_doc = _cwrc_dtoc_edition_collection_child_has_cwrc_document_cmodel($collection_child);
+      $has_supported_schema = $is_cwrc_doc ? _cwrc_dtoc_edition_collection_child_document_has_supported_schema($collection_child) : FALSE;
+      if ($is_cwrc_doc && $has_supported_schema) {
         $options[$pid] = $collection_child->label;
       }
     }
@@ -196,7 +278,32 @@ function _cwrc_dtoc_edition_get_collection_pid_options($object) {
  * @return bool
  *   The check.
  */
-function _cwrc_dtoc_edition_collection_child_has_cwrc_document_cmodel($object) {
+function _cwrc_dtoc_edition_collection_child_has_cwrc_document_cmodel(\FedoraObject $object) {
+  if (!$object) {
+    return FALSE;
+  }
   $models = !empty($object->models) ? $object->models : array();
   return in_array('cwrc:documentCModel', $models, TRUE);
+}
+
+/**
+ * Checks whether a supplied object has a supported schema.
+ *
+ * @param \FedoraObject $object
+ *   The object.
+ *
+ * @return bool
+ *   TRUE the supported schema available , FALSE otherwise.
+ */
+function _cwrc_dtoc_edition_collection_child_document_has_supported_schema(\FedoraObject $object) {
+  if (!$object) {
+    return FALSE;
+  }
+
+  $supported_mappings = array('tei', 'orlando');
+  module_load_include('inc', 'islandora_cwrc_writer', 'includes/utilities');
+  $schema = islandora_cwrc_writer_get_document_schema_object($object);
+  $schema_mapping = $schema ? islandora_cwrc_writer_get_schema_mapping($schema) : '';
+
+  return in_array($schema_mapping, $supported_mappings, TRUE);
 }
