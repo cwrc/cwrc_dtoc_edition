@@ -5,6 +5,12 @@
  * Implementation of various theme and template preprocess functions.
  */
 
+/**
+ * Template preprocess for cwrc_dtoc_edition.
+ *
+ * @param array $variables
+ *   The variables.
+ */
 function template_preprocess_cwrc_dtoc_edition(array &$variables) {
   $islandora_object = $variables['islandora_object'];
   $variables['islandora_content'] = '';

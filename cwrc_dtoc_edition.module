@@ -168,7 +168,7 @@ function cwrc_dtoc_edition_reveal_form_batch_submit(array $form, array &$form_st
       );
     }
     // Getting corpus metadata.
-    $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata', array());
+    $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata', array($object_id));
     // Deleting generated datastream files after generating corpus metadata.
     foreach ($collections as $collection_values) {
       $batch['operations'][] = array(

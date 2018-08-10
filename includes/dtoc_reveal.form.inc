@@ -534,8 +534,10 @@ function cwrc_dtoc_edition_reveal_form_validate(array $form, array &$form_state)
   if (empty($values['sources']['collections']['items'])) {
     form_set_error('sources][search_collections][search', t('No sources was selected'));
   }
-  // @todo validate corpus configuration.
-  // form_set_error('sources][search_collections][search', t('Still testing ingestion not allowed at the moment'));
+
+  // Validating corpus configurations.
+  form_set_error('sources][search_collections][search', t('Still testing ingestion not allowed at the moment'));
+  dpm($values['corpus_configurations']);
 }
 
 /**
@@ -671,7 +673,7 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_collection_items_datastream
   $context['results']['dtoc_input_files_query'] = $files_url_query;
 }
 
-function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata(&$context) {
+function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context) {
   $input = !empty($context['results']['dtoc_input_files_query']) ? $context['results']['dtoc_input_files_query'] : '';
   $input_format = '';
   $trombone_data = array();
@@ -692,6 +694,19 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata(&$context) {
     );
     if ($input_format) {
       $parameters['inputFormat'] = $input_format;
+    }
+
+    // Adding title and subTitle based MODS datastream.
+    if (($object = islandora_object_load($pid)) && !empty($object['MODS'])) {
+      $mods_datastream = $object['MODS'];
+      $mods_data = drupal_json_decode(drupal_json_encode((array) simplexml_load_string($mods_datastream->content)));
+      if (!empty($mods_data['titleInfo']['title'])) {
+        $parameters['title'] = $mods_data['titleInfo']['title'];
+      }
+
+      if (!empty($mods_data['titleInfo']['subTitle'])) {
+        $parameters['subTitle'] = $mods_data['titleInfo']['subTitle'];
+      }
     }
 
     $data = drupal_http_build_query($parameters);
