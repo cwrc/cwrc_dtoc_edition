@@ -17,10 +17,14 @@
  *   The form structure.
  */
 function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
+  $path = drupal_get_path('module', 'cwrc_dtoc_edition');
+  $form['#attributes']['class'][] = 'islandora-ingest-form--cwrc-dtoc-reveal-form';
   // To allow form alter check.
   $form_state['cwrc_dtoc_edition_reveal_form'] = TRUE;
   // Adding needed ctools includes.
   _cwrc_dtoc_edition_reveal_form_add_ctools_includes();
+  $form['#attached']['js'][] = $path . '/js/dtoc_reveal_form.js';
+  $form['#attached']['css'][] = $path . '/css/dtoc_reveal_form.css';
 
   // Main source container.
   $form['sources'] = array(
@@ -104,6 +108,7 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
           ':input[name="corpus_configuration[custom][optin]"]' => array('checked' => FALSE),
         ),
       ),
+      '#autocomplete_path' => 'dtoc-edition/search-autocomplete',
     ),
   );
 
@@ -535,9 +540,43 @@ function cwrc_dtoc_edition_reveal_form_validate(array $form, array &$form_state)
     form_set_error('sources][search_collections][search', t('No sources was selected'));
   }
 
-  // Validating corpus configurations.
-  form_set_error('sources][search_collections][search', t('Still testing ingestion not allowed at the moment'));
-  dpm($values['corpus_configurations']);
+  // Validating custom xpaths if user opted in.
+  $is_custom_xpaths = !empty($values['corpus_configuration']['custom']['optin']);
+  $is_from_cwrc_dtoc_edition = !empty($values['corpus_configuration']['copy_cwrc_edition']['optin']);
+  $is_from_voyant_dtoc_edition = !empty($values['corpus_configuration']['copy_dtoc_edition']['optin']);
+  if ($is_custom_xpaths) {
+    $options = $values['corpus_configuration']['custom']['options'];
+    $has_xpath = FALSE;
+    foreach ($options['xpaths'] as $xpath_value) {
+      if (!empty($xpath_value)) {
+        $has_xpath = TRUE;
+        break;
+      }
+    }
+    if (!$has_xpath) {
+      form_set_error('corpus_configuration][custom][options][xpaths', t('No xPath provided!'));
+    }
+  }
+  elseif ($is_from_cwrc_dtoc_edition) {
+    $pid = !empty($values['corpus_configuration']['copy_cwrc_edition']['search']) ? $values['corpus_configuration']['copy_cwrc_edition']['search'] : '';
+    $dtoc_edition_object = islandora_object_load($pid);
+    if (!$dtoc_edition_object || empty($dtoc_edition_object['DTOC'])) {
+      form_set_error(
+        'corpus_configuration][copy_cwrc_edition][search',
+        t('Please, provide a valid CWRC DToC edition to copy from.')
+      );
+    }
+  }
+  elseif ($is_from_voyant_dtoc_edition && empty($values['corpus_configuration']['copy_dtoc_edition']['search'])) {
+    // @todo find out how to validate a voyant url.
+    form_set_error(
+      'corpus_configuration][copy_dtoc_edition][search',
+      t('Please, provide a valid voyant url.')
+    );
+  }
+  else {
+    form_set_error('sources][search_collections][search', t('Currently testing xpaths configuration please provide them in order to submit the form.'));
+  }
 }
 
 /**
@@ -599,13 +638,11 @@ function cwrc_dtoc_edition_reveal_form_submit(array $form, array &$form_state) {
   }
   $values = $form_state['values'];
   $collections = $values['sources']['collections']['items'];
-  $corpus_configurations = !empty($values['corpus_configurations']) ? $values['corpus_configurations'] : array();
+  $corpus_configuration = !empty($values['corpus_configuration']) ? $values['corpus_configuration'] : array();
   if (!empty($collections)) {
     $form_state['cwrc_dtoc_edition_reveal_ingested_object_id'] = $object->id;
-    $form_state['cwrc_dtoc_edition_reveal_ingested_data'] = array(
-      'collections' => $collections,
-      'corpus_configurations' => $corpus_configurations,
-    );
+    $form_state['cwrc_dtoc_edition_reveal_ingested_data']['collections'] = $collections;
+    $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configuration'] = $corpus_configuration;
   }
 
   // Clearing the session.
@@ -673,8 +710,42 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_collection_items_datastream
   $context['results']['dtoc_input_files_query'] = $files_url_query;
 }
 
+function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(array $corpus_configurations, &$context) {
+  $xpaths = array();
+  $is_from_cwrc_dtoc_edition = !empty($corpus_configurations['copy_cwrc_edition']['optin']);
+//  $is_from_voyant_dtoc_edition = !empty($corpus_configurations['copy_dtoc_edition']['optin']);
+  $is_custom_xpaths = !empty($corpus_configurations['custom']['optin']);
+  $context['message'] = t('Getting xPaths customization from corpus configurations...');
+
+  if ($is_from_cwrc_dtoc_edition && !empty($corpus_configurations['copy_cwrc_edition']['search'])) {
+    $pid = $corpus_configurations['copy_cwrc_edition']['search'];
+    if (($dtoc_edition_object = islandora_object_load($pid)) && !empty($dtoc_edition_object['DTOC'])) {
+      $xml_arr = (array) simplexml_load_string($dtoc_edition_object['DTOC']->content);
+      $data = drupal_json_decode(drupal_json_encode($xml_arr));
+      $xpaths = !empty($data['corpusConfiguration']['xmlXpathExpressions']) ? $data['corpusConfiguration']['xmlXpathExpressions'] : array();
+    }
+  }
+  elseif ($is_custom_xpaths && !empty($corpus_configurations['custom']['options']['xpaths'])) {
+    $custom_xpaths = $corpus_configurations['custom']['options']['xpaths'];
+    $supported_xpath = array(
+      'xmlAuthorXpath',
+      'xmlContentXpath',
+      'xmlDocumentsXpath',
+      'xmlTitleXpath',
+    );
+    foreach ($supported_xpath as $xpath_key) {
+      $xpath_key_form = strtolower(substr($xpath_key, 0, -5));
+      if (!empty($custom_xpaths[$xpath_key_form])) {
+        $xpaths[$xpath_key] = $custom_xpaths[$xpath_key_form];
+      }
+    }
+  }
+  $context['results']['xml_xpaths'] = $xpaths;
+}
+
 function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context) {
   $input = !empty($context['results']['dtoc_input_files_query']) ? $context['results']['dtoc_input_files_query'] : '';
+  $xpaths = $context['results']['xml_xpaths'];
   $input_format = '';
   $trombone_data = array();
   $context['message'] = t('Getting corpus metadata from Voyant...');
@@ -695,6 +766,10 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context
     if ($input_format) {
       $parameters['inputFormat'] = $input_format;
     }
+    // Adding xPath user options.
+    foreach ($xpaths as $key => $option) {
+      $parameters[$key] = $option;
+    }
 
     // Adding title and subTitle based MODS datastream.
     if (($object = islandora_object_load($pid)) && !empty($object['MODS'])) {
@@ -710,8 +785,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context
     }
 
     $data = drupal_http_build_query($parameters);
-    $data = str_replace('%3A', ':', $data);
-    $data = str_replace('.xml%250A', '.xml%0A', $data);
+    $data = str_replace(array('%3A', '.xml%250A'), array(':', '.xml%0A'), $data);
     $url = url($target_url);
     $request_options = array(
       'headers' => array(
@@ -771,59 +845,77 @@ function cwrc_dtoc_edition_reveal_form_batch_delete_datastream_files(array $coll
   }
 }
 
-function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_data(array $configurations, &$context) {
+function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_data(&$context) {
+  $xml_corpus_id_key = 1;
+  $xml_xpaths_key = 2;
+  $xml_trombone_key = 3;
   $trombone_data = !empty($context['results']['trombone_data']) ? $context['results']['trombone_data'] : array();
   $data = !empty($context['results']['xml_data']) ? $context['results']['xml_data'] : array();
+  $xml_xpaths = !empty($context['results']['xml_xpaths']) ? $context['results']['xml_xpaths'] : array();
   $context['message'] = t('Preparing xml datastream data for corpus configuration and metadata from Voyant...');
+
+  // Adding corpus metadata to our xml.
   if ($trombone_data && !empty($trombone_data['corpus']['metadata']['id'])) {
     $corpus_metadata = $trombone_data['corpus']['metadata'];
 
     // Setting up the corpus id.
-    $data[2][1] = array(
+    $data[2][$xml_corpus_id_key] = array(
       'name' => 'id',
       'value' => $corpus_metadata['id'],
     );
 
     // Setting up other trombone stuff.
-    $data[2][2] = array(
+    $data[2][$xml_trombone_key] = array(
       'name' => 'trombone',
       'attributes' => array(),
     );
     // Adding trombone data as attributes.
     foreach ($trombone_data as $data_name => $data_value) {
       if ($data_name !== 'corpus' && (is_string($data_value) || is_numeric($data_value))) {
-        $data[2][2]['attributes'][$data_name] = $data_value;
+        $data[2][$xml_trombone_key]['attributes'][$data_name] = $data_value;
       }
     }
     // Adding corpus metadata from trombone.
-    $data[2][2][1] = array(
+    $data[2][$xml_trombone_key][1] = array(
       'name' => 'CorpusMetadata',
     );
-    $corpus_metadata_counter = 1;
+    $xml_data_counter = 1;
     foreach ($corpus_metadata as $metadata_label => $metadata_value) {
       if ($metadata_label !== 'id' && (is_string($metadata_value) || is_numeric($metadata_value))) {
-        $data[2][2][1][$corpus_metadata_counter] = array(
+        $data[2][$xml_trombone_key][1][$xml_data_counter] = array(
           'name' => $metadata_label,
           'value' => $metadata_value,
         );
-        $corpus_metadata_counter++;
+        $xml_data_counter++;
       }
       elseif ($metadata_label === 'languageCodes' && is_array($metadata_value)) {
         // Dealing with language codes which is an array.
-        $data[2][2][1][$corpus_metadata_counter] = array(
+        $data[2][$xml_trombone_key][1][$xml_data_counter] = array(
           'name' => $metadata_label,
         );
         foreach ($metadata_value as $language_code) {
-          $data[2][2][1][$corpus_metadata_counter][] = array(
+          $data[2][$xml_trombone_key][1][$xml_data_counter][] = array(
             'name' => 'language',
             'value' => $language_code,
           );
         }
-        $corpus_metadata_counter++;
+        $xml_data_counter++;
       }
     }
   }
-  // @toto add corpus configuration from the form.
+
+  // Adding custom xml configuration provided.
+  $xml_data_counter = 1;
+  $data[2][$xml_xpaths_key] = array('name' => 'xmlXpathExpressions');
+  foreach ($xml_xpaths as $xml_xpath_label => $xml_xpath) {
+    $data[2][$xml_xpaths_key][$xml_data_counter] = array(
+      'name' => $xml_xpath_label,
+      'value' => $xml_xpath,
+    );
+    $xml_data_counter++;
+  }
+
+  // @todo add corpus configuration from the form.
   $context['results']['xml_data'] = $data;
 }
 
@@ -869,12 +961,6 @@ function _cwrc_dtoc_edition_reveal_form_add_ctools_includes() {
   // Add our own style.
   $ctools_style = _cwrc_dtoc_edition_reveal_form_get_ctools_form_js_style();
   drupal_add_js($ctools_style, 'setting');
-
-  // Since we have our js, css and images in well-known named directories,
-  // CTools makes it easy for us to just use them without worrying about
-  // using drupal_get_path() and all that ugliness.
-  ctools_add_js('dtoc_reveal_form', 'cwrc_dtoc_edition');
-  ctools_add_css('dtoc_reveal_form', 'cwrc_dtoc_edition');
 }
 
 /**

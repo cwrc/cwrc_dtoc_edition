@@ -15,6 +15,7 @@ define('CWRC_DTOC_EDITION_SESSION_KEY', 'cwrc_dtoc_edition_collections');
 function cwrc_dtoc_edition_menu() {
   $items = array();
 
+  // @todo reviews permissions access.
   $items['dtoc-edition/files-selector/%islandora_object/%ctools_js'] = array(
     'title' => 'Files selector',
     'title callback' => 'cwrc_dtoc_edition_ctools_modal_collection_files_selector_title',
@@ -27,6 +28,14 @@ function cwrc_dtoc_edition_menu() {
     // 'access arguments' => array(ISLANDORA_BASIC_COLLECTION_MIGRATE_COLLECTION_MEMBERS),
     'file' => 'includes/dtoc_reveal.endpoint.inc',
     'type' => MENU_CALLBACK,
+  );
+
+  $items['dtoc-edition/search-autocomplete'] = array(
+    'title' => 'Dynamic Table of Context search autocomplete',
+    'page callback' => 'cwrc_dtoc_edition_search_autocomplete',
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/cwrc_dtoc_edition.search.inc',
+    'access callback' => TRUE,
   );
 
   return $items;
@@ -137,7 +146,7 @@ function cwrc_dtoc_edition_reveal_form_batch_submit(array $form, array &$form_st
   if (!empty($form_state['cwrc_dtoc_edition_reveal_ingested_object_id']) && !empty($form_state['cwrc_dtoc_edition_reveal_ingested_data'])) {
     $object_id = $form_state['cwrc_dtoc_edition_reveal_ingested_object_id'];
     $collections = $form_state['cwrc_dtoc_edition_reveal_ingested_data']['collections'];
-    $corpus_configurations = $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configurations'];
+    $corpus_configurations = $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configuration'];
 
     // Initializing the batch.
     $batch = array(
@@ -160,6 +169,7 @@ function cwrc_dtoc_edition_reveal_form_batch_submit(array $form, array &$form_st
       'cwrc_dtoc_edition_reveal_form_batch_prepare_collections_source_xml_data',
       array($data, $collections),
     );
+
     // Preparing collections document files.
     foreach ($collections as $collection_values) {
       $batch['operations'][] = array(
@@ -167,8 +177,18 @@ function cwrc_dtoc_edition_reveal_form_batch_submit(array $form, array &$form_st
         array($collection_values),
       );
     }
+
+    // Extract user corpus configurations.
+    $batch['operations'][] = array(
+      'cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations',
+      array($corpus_configurations),
+    );
+
     // Getting corpus metadata.
-    $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata', array($object_id));
+    $batch['operations'][] = array(
+      'cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata',
+      array($object_id),
+    );
     // Deleting generated datastream files after generating corpus metadata.
     foreach ($collections as $collection_values) {
       $batch['operations'][] = array(
@@ -176,11 +196,8 @@ function cwrc_dtoc_edition_reveal_form_batch_submit(array $form, array &$form_st
         array($collection_values),
       );
     }
-    // Preparing source xml data for corpus metadata and configurations..
-    $batch['operations'][] = array(
-      'cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_data',
-      array($corpus_configurations),
-    );
+    // Preparing source xml data for corpus metadata and configurations.
+    $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_data', array());
     $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_generate_datastream_content', array($object_id));
     batch_set($batch);
   }

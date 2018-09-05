@@ -151,34 +151,34 @@ div.ctools-cwrc-dtoc-edition-modal-content .modal-content .modal-throbber-wrappe
 }
 .subform-collection-item > a,
 .subform-collection-item > .subform-collection-item-actions,
-#islandora-ingest-form .form-item-sources-search-collections-search,
-#islandora-ingest-form .form-item-sources-search-collections-search + .form-actions {
+.islandora-ingest-form--cwrc-dtoc-reveal-form .form-item-sources-search-collections-search,
+.islandora-ingest-form--cwrc-dtoc-reveal-form .form-item-sources-search-collections-search + .form-actions {
   display: inline-block;
   vertical-align: middle;
 }
-#islandora-ingest-form .form-item-sources-search-collections-search,
+.islandora-ingest-form--cwrc-dtoc-reveal-form .form-item-sources-search-collections-search,
 .subform-collection-item > a {
   margin-right: 15px;
 }
 .subform-collection-item:last-child {
   margin-bottom: 15px;
 }
-.section-content #main #islandora-ingest-form .subform-collection-item > .subform-collection-item-actions input.form-submit,
-.section-content #main #islandora-ingest-form .form-item-sources-search-collections-search + .form-actions input.form-submit {
+.section-content #main .islandora-ingest-form--cwrc-dtoc-reveal-form .subform-collection-item > .subform-collection-item-actions input.form-submit,
+.section-content #main .islandora-ingest-form--cwrc-dtoc-reveal-form .form-item-sources-search-collections-search + .form-actions input.form-submit {
   margin-top: 0;
 }
-.section-content #main #islandora-ingest-form .subform-collection-item > .subform-collection-item-actions .subform-collection-item-remove,
-.section-content #main #islandora-ingest-form .form-item-sources-search-collections-search + .form-actions .reveal-form--search-collections-add-full {
+.section-content #main .islandora-ingest-form--cwrc-dtoc-reveal-form .subform-collection-item > .subform-collection-item-actions .subform-collection-item-remove,
+.section-content #main .islandora-ingest-form--cwrc-dtoc-reveal-form .form-item-sources-search-collections-search + .form-actions .reveal-form--search-collections-add-full {
   margin-right: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
-.section-content #main #islandora-ingest-form .subform-collection-item > .subform-collection-item-actions .ctools-use-modal,
-.section-content #main #islandora-ingest-form .form-item-sources-search-collections-search + .form-actions .ctools-use-modal {
+.section-content #main .islandora-ingest-form--cwrc-dtoc-reveal-form .subform-collection-item > .subform-collection-item-actions .ctools-use-modal,
+.section-content #main .islandora-ingest-form--cwrc-dtoc-reveal-form .form-item-sources-search-collections-search + .form-actions .ctools-use-modal {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
-.section-content #main #islandora-ingest-form .form-item-sources-search-collections-search + .form-actions {
+.section-content #main .islandora-ingest-form--cwrc-dtoc-reveal-form .form-item-sources-search-collections-search + .form-actions {
   margin-bottom: 1em;
 }
 
