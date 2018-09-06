@@ -567,12 +567,28 @@ function cwrc_dtoc_edition_reveal_form_validate(array $form, array &$form_state)
       );
     }
   }
-  elseif ($is_from_voyant_dtoc_edition && empty($values['corpus_configuration']['copy_dtoc_edition']['search'])) {
-    // @todo find out how to validate a voyant url.
-    form_set_error(
-      'corpus_configuration][copy_dtoc_edition][search',
-      t('Please, provide a valid voyant url.')
-    );
+  elseif ($is_from_voyant_dtoc_edition) {
+    $copy_dtoc_edition_field = 'corpus_configuration][copy_dtoc_edition][search';
+    // Getting the url value.
+    $url = !empty($values['corpus_configuration']['copy_dtoc_edition']['search']) ? $values['corpus_configuration']['copy_dtoc_edition']['search'] : '';
+    // Check if url is valid voyant dtoc url.
+    $is_valid_dtoc_url = strpos($url, '//voyant-tools.org/dtoc') !== FALSE;
+    // Parse the url to check if corpus id is provided.
+    $parsed_url = $is_valid_dtoc_url ? drupal_parse_url($url) : array();
+    // Displaying the errors accordingly.
+    $error_message = '';
+    if (!$is_valid_dtoc_url) {
+      $error_message = t('Please, provide a valid voyant URL! - @status', array(
+        '@status' => $is_valid_dtoc_url ? 'true' : 'false',
+      ));
+    }
+    elseif (empty($parsed_url['query']['corpus'])) {
+      $error_message = t('No corpus id was found in the provided voyant URL!');
+    }
+
+    if ($error_message) {
+      form_set_error($copy_dtoc_edition_field, $error_message);
+    }
   }
   else {
     form_set_error('sources][search_collections][search', t('Currently testing xpaths configuration please provide them in order to submit the form.'));
@@ -713,8 +729,14 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_collection_items_datastream
 function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(array $corpus_configurations, &$context) {
   $xpaths = array();
   $is_from_cwrc_dtoc_edition = !empty($corpus_configurations['copy_cwrc_edition']['optin']);
-//  $is_from_voyant_dtoc_edition = !empty($corpus_configurations['copy_dtoc_edition']['optin']);
+  $is_from_voyant_dtoc_edition = !empty($corpus_configurations['copy_dtoc_edition']['optin']);
   $is_custom_xpaths = !empty($corpus_configurations['custom']['optin']);
+  $supported_xpath = array(
+    'xmlAuthorXpath',
+    'xmlContentXpath',
+    'xmlDocumentsXpath',
+    'xmlTitleXpath',
+  );
   $context['message'] = t('Getting xPaths customization from corpus configurations...');
 
   if ($is_from_cwrc_dtoc_edition && !empty($corpus_configurations['copy_cwrc_edition']['search'])) {
@@ -725,14 +747,29 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
       $xpaths = !empty($data['corpusConfiguration']['xmlXpathExpressions']) ? $data['corpusConfiguration']['xmlXpathExpressions'] : array();
     }
   }
+  elseif ($is_from_voyant_dtoc_edition && !empty($corpus_configurations['copy_dtoc_edition']['search'])) {
+    $url_arr = drupal_parse_url($corpus_configurations['copy_dtoc_edition']['search']);
+    $corpus = $url_arr['query']['corpus'];
+    $tool = 'corpus.DocumentsMetadata';
+    $path = 'https://voyant-tools.org/trombone';
+    $query = array(
+      'corpus' => $corpus,
+      'tool' => $tool,
+    );
+    $url = url($path, array('query' => $query));
+    $request = drupal_http_request($url);
+    if ($request->code === '200') {
+      $request_data = drupal_json_decode($request->data);
+      if (!empty($request_data['documentsMetadata']['total']) && $request_data['documentsMetadata']['total'] >= 1) {
+        $query_parameters = $request_data['documentsMetadata']['documents'][0]['parent_queryParameters'];
+        $query_parameters = decode_entities($query_parameters);
+        parse_str($query_parameters, $data);
+        $xpaths = array_intersect_key($data, drupal_map_assoc($supported_xpath));
+      }
+    }
+  }
   elseif ($is_custom_xpaths && !empty($corpus_configurations['custom']['options']['xpaths'])) {
     $custom_xpaths = $corpus_configurations['custom']['options']['xpaths'];
-    $supported_xpath = array(
-      'xmlAuthorXpath',
-      'xmlContentXpath',
-      'xmlDocumentsXpath',
-      'xmlTitleXpath',
-    );
     foreach ($supported_xpath as $xpath_key) {
       $xpath_key_form = strtolower(substr($xpath_key, 0, -5));
       if (!empty($custom_xpaths[$xpath_key_form])) {
