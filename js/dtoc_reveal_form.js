@@ -8,12 +8,6 @@ Drupal.theme.prototype.CToolsCWRCDtocEditionModal = function () {
   html += '  <div class="ctools-modal-content ctools-cwrc-dtoc-edition-modal-content">';
   html += '    <table cellpadding="0" cellspacing="0" id="ctools-face-table">';
   html += '      <tr>';
-  html += '        <td class="popups-tl popups-border"></td>';
-  html += '        <td class="popups-t popups-border"></td>';
-  html += '        <td class="popups-tr popups-border"></td>';
-  html += '      </tr>';
-  html += '      <tr>';
-  html += '        <td class="popups-cl popups-border"></td>';
   html += '        <td class="popups-c" valign="top">';
   html += '          <div class="popups-container">';
   html += '            <div class="modal-header popups-title">';
@@ -26,12 +20,6 @@ Drupal.theme.prototype.CToolsCWRCDtocEditionModal = function () {
   html += '            <div class="popups-footer"></div>'; //Maybe someday add some footer.
   html += '          </div>';
   html += '        </td>';
-  html += '        <td class="popups-cr popups-border"></td>';
-  html += '      </tr>';
-  html += '      <tr>';
-  html += '        <td class="popups-bl popups-border"></td>';
-  html += '        <td class="popups-b popups-border"></td>';
-  html += '        <td class="popups-br popups-border"></td>';
   html += '      </tr>';
   html += '    </table>';
   html += '  </div>';

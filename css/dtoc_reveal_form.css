@@ -104,13 +104,15 @@ div.ctools-cwrc-dtoc-edition-modal-content .popups-container {
   overflow: hidden;
   height: 100%;
   background-color: #fff;
+  border: 14px solid #333;
+  border-radius: 10px;
 }
 div.ctools-cwrc-dtoc-edition-modal-content div.popups-title {
   -moz-border-radius-topleft: 0;
   -webkit-border-radius-topleft: 0;
   margin-bottom: 0;
-  background-color: #ff7200;
-  border: 1px solid #ce5c00;
+  background-color: #333;
+  border: 1px solid #333;
   padding: 4px 10px 5px;
   color: white;
   font-size: 1em;
@@ -119,6 +121,7 @@ div.ctools-cwrc-dtoc-edition-modal-content div.popups-title {
 div.ctools-cwrc-dtoc-edition-modal-content .popups-body {
   background-color: #fff;
   padding: 8px;
+  min-width: 100%;
 }
 div.ctools-cwrc-dtoc-edition-modal-content .popups-box .popups-buttons,
 div.ctools-cwrc-dtoc-edition-modal-content .popups-box .popups-footer {
@@ -141,6 +144,11 @@ div.ctools-cwrc-dtoc-edition-modal-content .modal-loading-wrapper {
 
 div.ctools-cwrc-dtoc-edition-modal-content tbody {
   border: none;
+  background-color: transparent;
+}
+div.ctools-cwrc-dtoc-edition-modal-content > table > tbody > tr,
+div.ctools-cwrc-dtoc-edition-modal-content > table > tbody > tr > td.popups-c {
+  background-color: transparent;
 }
 
 div.ctools-cwrc-dtoc-edition-modal-content .modal-content .modal-throbber-wrapper img {
@@ -185,4 +193,10 @@ div.ctools-cwrc-dtoc-edition-modal-content .modal-content .modal-throbber-wrappe
 .form-item-sources-search-collections-search,
 .form-item-sources-search-collections-search + .form-actions {
   /*display: inline-block;*/
+}
+div.ctools-modal-content .form-item-collection-files > label {
+  margin-bottom: 0.38197em;
+  border-bottom: 1px solid #333;
+  float: none;
+  width: 100%;
 }
