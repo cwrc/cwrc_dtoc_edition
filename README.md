@@ -18,7 +18,7 @@ $parameters = array(
   'subTitle' => $sub_title,
 );
 ```
-1. `$input` is the path of to file(s) generated from documents datastream content.
+1. `$input` is the path of to file(s) generated from documents datastream content. Note that these files are deleted once the corpus metadata has been obtain.
 2. `$title` and `$sub_title` are extracted from the MODS datastream of the DToC edition being created.
 3. Other query parameters which are dynamically added are xpaths expressions.
 
