@@ -30,6 +30,19 @@ function cwrc_dtoc_edition_menu() {
     'type' => MENU_CALLBACK,
   );
 
+  $items['islandora/object/%islandora_object/manage/datastreams/%islandora_datastream/edit'] = array(
+    'title' => 'Edit CWRC DToC Edition datastream',
+    'title callback' => 'cwrc_dtoc_edition_datastream_edit_page_title',
+    'title arguments' => array(2, 5),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cwrc_dtoc_edition_reveal_form', 2, 5),
+    'access callback' => 'islandora_datastream_access',
+    'access arguments' => array(ISLANDORA_METADATA_EDIT, 5),
+    'file' => 'includes/dtoc_reveal.form.inc',
+    'type' => MENU_CALLBACK,
+    'load arguments' => array(2),
+  );
+
   $items['dtoc-edition/search-autocomplete'] = array(
     'title' => 'Dynamic Table of Context search autocomplete',
     'page callback' => 'cwrc_dtoc_edition_search_autocomplete',
@@ -216,6 +229,45 @@ function cwrc_dtoc_edition_cwrc_dtocCModel_islandora_ingest_steps() {
       'file' => 'includes/dtoc_reveal.form.inc',
     ),
   );
+}
+
+/**
+ * Implements hook_islandora_edit_datastream_registry().
+ */
+function cwrc_dtoc_edition_islandora_edit_datastream_registry(AbstractObject $object, $dsid) {
+  $datastream_id = is_object($dsid) ? $dsid->id : $dsid;
+  $has_dtoc_model = in_array(CWRC_DTOC_EDITION_ISLANDORA_CONTENT_MODEL, $object->models, TRUE);
+  if ($datastream_id === 'DTOC' && $has_dtoc_model) {
+    return array(
+      array(
+        'name' => t('Islandora CWRC DToC Edition'),
+        'url' => "islandora/object/{$object->id}/manage/datastreams/{$datastream_id}/edit",
+      ),
+    );
+  }
+}
+
+/**
+ * CWRC DToC Edition datastream edit page title callback.
+ *
+ * @param \AbstractObject|NULL $object
+ *   The Fedora Islandora object.
+ * @param \AbstractFedoraDatastream|NULL $datastream
+ *   The CWRC DToC edition datastream.
+ *
+ * @return string
+ *   The title.
+ */
+function cwrc_dtoc_edition_datastream_edit_page_title(AbstractObject $object = NULL, AbstractFedoraDatastream $datastream = NULL) {
+  if ($object && $datastream && $datastream->id === 'DTOC') {
+    $title = t('Edit "@label" CWRC DToC Edition datastream', array(
+      '@label' => $object->label,
+    ));
+  }
+  else {
+    $title = t('Edit CWRC DToC Edition datastream');
+  }
+  return $title;
 }
 
 /**

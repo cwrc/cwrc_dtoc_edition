@@ -12,12 +12,18 @@
  *   The form.
  * @param array $form_state
  *   The form state.
+ * @param \AbstractFedoraObject|NULL $object
+ *   The DToC object.
+ * @param \AbstractFedoraDatastream|NULL $datastream
+ *   The DToC datastream object.
  *
  * @return array
  *   The form structure.
  */
-function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
+function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, AbstractFedoraObject $object = NULL, AbstractFedoraDatastream $datastream = NULL) {
   $path = drupal_get_path('module', 'cwrc_dtoc_edition');
+  $datastream_data = array();
+
   $form['#attributes']['class'][] = 'islandora-ingest-form--cwrc-dtoc-reveal-form';
   // To allow form alter check.
   $form_state['cwrc_dtoc_edition_reveal_form'] = TRUE;
@@ -26,6 +32,16 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
   $form['#attached']['js'][] = $path . '/js/dtoc_reveal_form.js';
   $form['#attached']['css'][] = $path . '/css/dtoc_reveal_form.css';
 
+  if ($object && $datastream) {
+    module_load_include('inc', 'islandora', 'includes/breadcrumb');
+    drupal_set_breadcrumb(islandora_get_breadcrumbs($object));
+    if (empty($form_state['edit_session_populated'])) {
+      $datastream_data = _cwrc_dtoc_edition_reveal_form_populate_session_from_datastream($datastream, $form_state);
+      $form_state['edit_session_populated'] = TRUE;
+      $form_state['islandora_object_id'] = $object->id;
+    }
+  }
+
   // Main source container.
   $form['sources'] = array(
     '#type' => 'fieldset',
@@ -33,6 +49,7 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
     '#title' => t('Select sources'),
     '#required' => TRUE,
     '#collapsible' => FALSE,
+    '#weight' => 1,
   );
   $form['sources']['collections'] = array(
     '#type' => 'container',
@@ -73,10 +90,15 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
     '#title' => t('Configure corpus'),
     '#required' => TRUE,
     '#collapsible' => FALSE,
+    '#weight' => 2,
   );
 
   // Copy from cwrc edition.
   $search_title = t('search all DToC CWRC edition');
+  $user_settings = !empty($datastream_data['corpusConfiguration']['userSettings']) ? $datastream_data['corpusConfiguration']['userSettings'] : array();
+  $user_settings_type = !empty($user_settings['@attributes']['type']) ? $user_settings['@attributes']['type'] : '';
+  $user_settings_value = !empty($user_settings['@attributes']['value']) ? $user_settings['@attributes']['value'] : '';
+  $is_from_cwrc_dtoc_edition = $user_settings_type === 'copy_cwrc_edition';
   $form['corpus_configuration']['copy_cwrc_edition'] = array(
     '#type' => 'container',
     '#tree' => TRUE,
@@ -91,6 +113,7 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
           array(':input[name="corpus_configuration[custom][optin]"]' => array('checked' => TRUE)),
         ),
       ),
+      '#default_value' => $is_from_cwrc_dtoc_edition,
     ),
     'search' => array(
       '#type' => 'textfield',
@@ -109,11 +132,13 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
         ),
       ),
       '#autocomplete_path' => 'dtoc-edition/search-autocomplete',
+      '#default_value' => $user_settings_value,
     ),
   );
 
   // Copy from DToC edition.
   $search_title = t('full Voyant URL');
+  $is_from_voyant_dtoc_edition = $user_settings_type === 'copy_dtoc_edition';
   $form['corpus_configuration']['copy_dtoc_edition'] = array(
     '#type' => 'container',
     '#tree' => TRUE,
@@ -128,6 +153,7 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
           array(':input[name="corpus_configuration[custom][optin]"]' => array('checked' => TRUE)),
         ),
       ),
+      '#default_value' => $is_from_voyant_dtoc_edition,
     ),
     'search' => array(
       '#type' => 'textfield',
@@ -145,9 +171,11 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
           ':input[name="corpus_configuration[custom][optin]"]' => array('checked' => FALSE),
         ),
       ),
+      '#default_value' => $user_settings_value,
     ),
   );
 
+  $is_custom_xpaths = $user_settings_type === 'custom';
   $form['corpus_configuration']['custom'] = array(
     '#type' => 'container',
     '#tree' => TRUE,
@@ -162,8 +190,18 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state) {
           array(':input[name="corpus_configuration[copy_dtoc_edition][optin]"]' => array('checked' => TRUE)),
         ),
       ),
+      '#default_value' => $is_custom_xpaths,
     ),
-    'options' => _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform($form_state),
+    'options' => _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform($form_state, $is_custom_xpaths, $datastream_data),
+  );
+
+  $form['edit_action'] = array(
+    '#type' => 'actions',
+    '#access' => $object && $datastream,
+    'save' => array(
+      '#type' => 'submit',
+      '#value' => t('Save'),
+    ),
   );
 
   return $form;
@@ -421,11 +459,29 @@ function _cwrc_dtoc_edition_reveal_form_get_search_collections_actions(array &$f
  *
  * @param array $form_state
  *   The form state.
+ * @param bool $is_custom_xpaths
+ *   Either the setup should be custom.
+ * @param array $default_datastream
+ *   The default datastream content.
  *
  * @return array
  *   The subform structure.
  */
-function _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform(array &$form_state) {
+function _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform(array &$form_state, $is_custom_xpaths = FALSE, array $default_datastream = array()) {
+  $default_configuration = !empty($default_datastream['corpusConfiguration']) ? $default_datastream['corpusConfiguration'] : array();
+  if ($is_custom_xpaths && !empty($default_configuration['xmlXpathExpressions'])) {
+    $xml_xpath_expressions = $default_configuration['xmlXpathExpressions'];
+    $xml_content = !empty($xml_xpath_expressions['xmlContentXpath']) ? $xml_xpath_expressions['xmlContentXpath'] : '';
+    $xml_title = !empty($xml_xpath_expressions['xmlTitleXpath']) ? $xml_xpath_expressions['xmlTitleXpath'] : '';
+    $xml_author = !empty($xml_xpath_expressions['xmlAuthorXpath']) ? $xml_xpath_expressions['xmlAuthorXpath'] : '';
+    $xml_documents = !empty($xml_xpath_expressions['xmlDocumentsXpath']) ? $xml_xpath_expressions['xmlDocumentsXpath'] : '';
+  }
+  else {
+    $xml_content = '';
+    $xml_title = '';
+    $xml_author = '';
+    $xml_documents = '';
+  }
   $subform = array(
     '#type' => 'container',
     '#tree' => TRUE,
@@ -445,26 +501,31 @@ function _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform(arra
     '#description' => t('Define XPath Expressions for any of the following:'),
     '#tree' => TRUE,
     '#collapsible' => TRUE,
-    '#collapsed' => TRUE,
+    '#collapsed' => !$is_custom_xpaths,
     '#require' => TRUE,
   );
   $subform['xpaths']['xmlcontent'] = array(
     '#type' => 'textfield',
     '#title' => t('Content'),
+    '#default_value' => $xml_content,
   );
   $subform['xpaths']['xmltitle'] = array(
     '#type' => 'textfield',
     '#title' => t('Title'),
+    '#default_value' => $xml_title,
   );
   $subform['xpaths']['xmlauthor'] = array(
     '#type' => 'textfield',
     '#title' => t('Author'),
+    '#default_value' => $xml_author,
   );
   $subform['xpaths']['xmldocuments'] = array(
     '#type' => 'textfield',
     '#title' => t('Documents'),
+    '#default_value' => $xml_documents,
   );
 
+  $default_curation = !empty($default_configuration['userSettings']['curation']) ? $default_configuration['userSettings']['curation'] : array();
   $subform['curation'] = array(
     '#type' => 'fieldset',
     '#title' => t('Curation <span class="light">(optional)</span>'),
@@ -476,11 +537,13 @@ function _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform(arra
     '#type' => 'textfield',
     '#title' => t('curatorId'),
     '#suffix' => t('<div class="">OR</div>'),
+    '#default_value' => !empty($default_curation['@attributes']['id']) ? $default_curation['@attributes']['id'] : '',
   );
   $subform['curation']['from'] = array(
     '#type' => 'textfield',
     '#title' => t('copy from'),
     '#suffix' => t('<div class="">OR</div>'),
+    '#default_value' => !empty($default_curation['@attributes']['from']) ? $default_curation['@attributes']['from'] : '',
   );
   $subform['curation']['custom'] = array(
     '#type' => 'textarea',
@@ -623,7 +686,7 @@ function cwrc_dtoc_edition_reveal_form_collections_remove_item($form, &$form_sta
 }
 
 /**
- * For the "add full" submit "search collection "input.
+ * For the "add full" submit "search collection" input.
  */
 function cwrc_dtoc_edition_reveal_form_sources_search_collections_add_full_submit($form, &$form_state) {
   $triggering_element = $form_state['triggering_element'];
@@ -644,13 +707,18 @@ function cwrc_dtoc_edition_reveal_form_sources_search_collections_add_full_submi
  *   The form state.
  */
 function cwrc_dtoc_edition_reveal_form_submit(array $form, array &$form_state) {
-  module_load_include('inc', 'islandora', 'includes/ingest.form.inc');
+  if (empty($form_state['edit_session_populated'])) {
+    module_load_include('inc', 'islandora', 'includes/ingest.form.inc');
 
-  $object = islandora_ingest_form_get_object($form_state);
-  if (!isset($object['DTOC'])) {
-    $datastream = $object->constructDatastream('DTOC', 'M');
-    $datastream->mimetype = 'application/xml';
-    $object->ingestDatastream($datastream);
+    $object = islandora_ingest_form_get_object($form_state);
+    if (!isset($object['DTOC'])) {
+      $datastream = $object->constructDatastream('DTOC', 'M');
+      $datastream->mimetype = 'application/xml';
+      $object->ingestDatastream($datastream);
+    }
+  }
+  else {
+    $object = islandora_object_load($form_state['islandora_object_id']);
   }
   $values = $form_state['values'];
   $collections = $values['sources']['collections']['items'];
@@ -659,6 +727,11 @@ function cwrc_dtoc_edition_reveal_form_submit(array $form, array &$form_state) {
     $form_state['cwrc_dtoc_edition_reveal_ingested_object_id'] = $object->id;
     $form_state['cwrc_dtoc_edition_reveal_ingested_data']['collections'] = $collections;
     $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configuration'] = $corpus_configuration;
+  }
+
+  // Calling the submit batch from here in case this is an edit.
+  if (!empty($form_state['edit_session_populated']) && !empty($form_state['islandora_object_id'])) {
+    cwrc_dtoc_edition_reveal_form_batch_submit($form, $form_state);
   }
 
   // Clearing the session.
@@ -687,7 +760,17 @@ function cwrc_dtoc_edition_reveal_form_sources_collections_ajax_callback($form, 
  * Batch helpers functions.
  */
 
-function cwrc_dtoc_edition_reveal_form_batch_prepare_collections_source_xml_data($data, $collections, &$context) {
+/**
+ * Prepares the selected collections and their documents to be inserted into data.
+ *
+ * @param array $data
+ *   The data to be stored in xml.
+ * @param array $collections
+ *   Selected collections.
+ * @param array $context
+ *   The batch context.
+ */
+function cwrc_dtoc_edition_reveal_form_batch_prepare_collections_source_xml_data(array $data, array $collections, array &$context) {
   $collection_counter = 1;
   $context['message'] = t('Preparing xml datastream data for selected collections');
   foreach ($collections as $collection) {
@@ -728,6 +811,7 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_collection_items_datastream
 
 function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(array $corpus_configurations, &$context) {
   $xpaths = array();
+  $context['results']['xml_xpaths_setup'] = array();
   $is_from_cwrc_dtoc_edition = !empty($corpus_configurations['copy_cwrc_edition']['optin']);
   $is_from_voyant_dtoc_edition = !empty($corpus_configurations['copy_dtoc_edition']['optin']);
   $is_custom_xpaths = !empty($corpus_configurations['custom']['optin']);
@@ -746,6 +830,8 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
       $data = drupal_json_decode(drupal_json_encode($xml_arr));
       $xpaths = !empty($data['corpusConfiguration']['xmlXpathExpressions']) ? $data['corpusConfiguration']['xmlXpathExpressions'] : array();
     }
+    $context['results']['xml_xpaths_setup']['type'] = 'copy_cwrc_edition';
+    $context['results']['xml_xpaths_setup']['value'] = $pid;
   }
   elseif ($is_from_voyant_dtoc_edition && !empty($corpus_configurations['copy_dtoc_edition']['search'])) {
     $url_arr = drupal_parse_url($corpus_configurations['copy_dtoc_edition']['search']);
@@ -767,6 +853,8 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
         $xpaths = array_intersect_key($data, drupal_map_assoc($supported_xpath));
       }
     }
+    $context['results']['xml_xpaths_setup']['type'] = 'copy_dtoc_edition';
+    $context['results']['xml_xpaths_setup']['value'] = $corpus_configurations['copy_dtoc_edition']['search'];
   }
   elseif ($is_custom_xpaths && !empty($corpus_configurations['custom']['options']['xpaths'])) {
     $custom_xpaths = $corpus_configurations['custom']['options']['xpaths'];
@@ -776,6 +864,8 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
         $xpaths[$xpath_key] = $custom_xpaths[$xpath_key_form];
       }
     }
+    $context['results']['xml_xpaths_setup']['type'] = 'custom';
+    $context['results']['xml_xpaths_setup']['curation'] = $corpus_configurations['custom']['options']['curation'];
   }
   $context['results']['xml_xpaths'] = $xpaths;
 }
@@ -884,8 +974,9 @@ function cwrc_dtoc_edition_reveal_form_batch_delete_datastream_files(array $coll
 
 function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_data(&$context) {
   $xml_corpus_id_key = 1;
-  $xml_xpaths_key = 2;
-  $xml_trombone_key = 3;
+  $xml_corpus_configure_key = 2;
+  $xml_xpaths_key = 3;
+  $xml_trombone_key = 4;
   $trombone_data = !empty($context['results']['trombone_data']) ? $context['results']['trombone_data'] : array();
   $data = !empty($context['results']['xml_data']) ? $context['results']['xml_data'] : array();
   $xml_xpaths = !empty($context['results']['xml_xpaths']) ? $context['results']['xml_xpaths'] : array();
@@ -941,6 +1032,30 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_da
     }
   }
 
+  // Adding the way xml xpaths configurations was applied.
+  $corpus_configuration_setup = $context['results']['xml_xpaths_setup'];
+  if (!empty($corpus_configuration_setup['type'])) {
+    $data[2][$xml_corpus_configure_key] = array(
+      'name' => 'userSettings',
+      'attributes' => array('type' => $corpus_configuration_setup['type']),
+    );
+    $type = $corpus_configuration_setup['type'];
+    if ($type === 'copy_dtoc_edition' || $type === 'copy_cwrc_edition') {
+      $data[2][$xml_corpus_configure_key]['attributes']['value'] = $corpus_configuration_setup['value'];
+    }
+    else {
+      $curation = $corpus_configuration_setup['curation'];
+      $data[2][$xml_corpus_configure_key][1] = array(
+        'name' => 'curation',
+        'attributes' => array(
+          'id' => !empty($curation['id']) ? $curation['id'] : '',
+          'from' => !empty($curation['from']) ? $curation['from'] : '',
+        ),
+        'value' => !empty($curation['custom']) ? $curation['custom'] : '',
+      );
+    }
+  }
+
   // Adding custom xml configuration provided.
   $xml_data_counter = 1;
   $data[2][$xml_xpaths_key] = array('name' => 'xmlXpathExpressions');
@@ -952,6 +1067,7 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_da
     $xml_data_counter++;
   }
 
+  ksort($data[2]);
   // @todo add corpus configuration from the form.
   $context['results']['xml_data'] = $data;
 }
@@ -1084,4 +1200,34 @@ function _cwrc_dtoc_edition_reveal_form_get_collection_selected_documents_files(
   }
 
   return $collection_files;
+}
+
+/**
+ * Populates user session with current datastream collections.
+ *
+ * @param \AbstractFedoraDatastream $datastream
+ *   The CWRC DToC edition datastream.
+ * @param array $form_state
+ *   The current form state.
+ *
+ * @return array
+ *   The datastream content as array.
+ */
+function _cwrc_dtoc_edition_reveal_form_populate_session_from_datastream(AbstractFedoraDatastream $datastream, array &$form_state) {
+  $data = drupal_json_decode(drupal_json_encode((array) simplexml_load_string($datastream->content)));
+  if (!empty($data['sources'])) {
+    $collections = empty($data['sources']['collection']['@attributes']) && count($data['sources']['collection']) > 1 ? $data['sources']['collection'] : $data['sources'];
+    foreach ($collections as $collection) {
+      $collection_pid = $collection['@attributes']['pid'];
+      $documents = !empty($collection['document']) ? $collection['document'] : array();
+      $selected_files = array();
+      foreach ($documents as $document) {
+        $selected_files[$document['@attributes']['pid']] = $document['@attributes']['label'];
+      }
+
+      $form_state['selected_collection'][$collection_pid]['object_id'] = $collection_pid;
+      cwrc_dtoc_edition_set_selected_collection_files_in_session($collection_pid, $selected_files);
+    }
+  }
+  return $data;
 }

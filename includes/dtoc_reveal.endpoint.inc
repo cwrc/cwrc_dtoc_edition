@@ -32,6 +32,7 @@ function cwrc_dtoc_edition_ctools_modal_collection_files_selector_title($object)
 function cwrc_dtoc_edition_ctools_modal_collection_files_selector($object, $js = NULL) {
   $collection_pid = $object->id;
   $selected_files = cwrc_dtoc_edition_get_selected_collection_files_from_session($collection_pid);
+
   $form_state = array(
     'title' => cwrc_dtoc_edition_ctools_modal_collection_files_selector_title($object),
     'islandora_object' => $object,
