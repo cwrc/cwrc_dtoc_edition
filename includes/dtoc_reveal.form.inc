@@ -716,21 +716,24 @@ function cwrc_dtoc_edition_reveal_form_submit(array $form, array &$form_state) {
       $datastream->mimetype = 'application/xml';
       $object->ingestDatastream($datastream);
     }
+    $object_id = $object->id;
   }
   else {
-    $object = islandora_object_load($form_state['islandora_object_id']);
+    $object_id = $form_state['islandora_object_id'];
   }
   $values = $form_state['values'];
   $collections = $values['sources']['collections']['items'];
   $corpus_configuration = !empty($values['corpus_configuration']) ? $values['corpus_configuration'] : array();
   if (!empty($collections)) {
-    $form_state['cwrc_dtoc_edition_reveal_ingested_object_id'] = $object->id;
+    $form_state['cwrc_dtoc_edition_reveal_ingested_object_id'] = $object_id;
     $form_state['cwrc_dtoc_edition_reveal_ingested_data']['collections'] = $collections;
     $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configuration'] = $corpus_configuration;
   }
 
   // Calling the submit batch from here in case this is an edit.
   if (!empty($form_state['edit_session_populated']) && !empty($form_state['islandora_object_id'])) {
+    $form_state['redirect'] = "islandora/object/{$object_id}";
+    drupal_set_message(t('@label DToC datastream has been updated'));
     cwrc_dtoc_edition_reveal_form_batch_submit($form, $form_state);
   }
 
