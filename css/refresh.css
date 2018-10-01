@@ -1,0 +1,37 @@
+.form-item-lazy-load-trigger > .lazy-loader-trigger {
+  display: none;
+}
+.form-item-lazy-load-trigger > .ajax-progress {
+  text-align: center;
+}
+.form-item-lazy-load-trigger > .ajax-progress .throbber {
+  background: transparent url(../images/loading-large.gif) no-repeat 0 center;
+  float: none;
+  height: 100px;
+  width: 100px;
+  display: inline-block;
+}
+
+.form-item-lazy-load-trigger > .ajax-progress .message {
+  display: inline-block;
+  width: 100%;
+  padding-left: 0;
+}
+.section-content .block .document-statuses ul.collection-items {
+  margin-bottom: 1em;
+}
+
+.section-content .block .document-statuses ul.collection-items li {
+  float: none;
+}
+
+.section-content .block .document-statuses ul.collection-items > li > div > .form-item {
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #E1E1E1;
+  font-weight: bold;
+}
+.section-content .block .document-statuses ul.collection-items li:last-child,
+.section-content .block .document-statuses ul.collection-documents-items li .form-item {
+  margin-bottom: 0;
+}
