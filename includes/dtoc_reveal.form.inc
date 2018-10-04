@@ -49,7 +49,7 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, Abstract
     '#title' => t('Select sources'),
     '#required' => TRUE,
     '#collapsible' => FALSE,
-    '#weight' => 1,
+    '#weight' => -99,
   );
   $form['sources']['collections'] = array(
     '#type' => 'container',
@@ -90,7 +90,7 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, Abstract
     '#title' => t('Configure corpus'),
     '#required' => TRUE,
     '#collapsible' => FALSE,
-    '#weight' => 2,
+    '#weight' => -98,
   );
 
   // Copy from cwrc edition.
