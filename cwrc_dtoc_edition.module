@@ -223,39 +223,18 @@ function cwrc_dtoc_edition_datastream_edit_page_title(AbstractObject $object = N
  * Implements hook_cmodel_pid_islandora_view_object() for cwrc:dtocCModel.
  */
 function cwrc_dtoc_edition_cwrc_dtocCModel_islandora_view_object($object) {
+  // Check if any sources have been updated.
+  $form_state['build_info']['args'] = array();
+  $form_state['islandora_object'] = $object;
+  $form = drupal_build_form('cwrc_dtoc_edition_refresh_form', $form_state);
+  $datastream = !empty($object['DTOC']) ? $object['DTOC'] : NULL;
+  $access = $datastream ? islandora_datastream_access(ISLANDORA_METADATA_EDIT, $datastream) : FALSE;
+  $form['#access'] = $access;
   $output = theme('cwrc_dtoc_edition', array('islandora_object' => $object));
-  return array('' => $output);
-}
-
-/**
- * Implements hook_block_info().
- */
-function cwrc_dtoc_edition_block_info() {
-  $blocks = array();
-  $blocks['cwrc_dtoc_edition_refresh'] = array(
-    'info' => t('CWRC DToC Edition refresh'),
-    'cache' => DRUPAL_CACHE_PER_ROLE | DRUPAL_CACHE_PER_PAGE,
+  return array(
+    'dtoc_iframe' => $output,
+    'status_form' => $form,
   );
-  return $blocks;
-}
-
-/**
- * Implements hook_block_view().
- */
-function cwrc_dtoc_edition_block_view($delta = '') {
-  $block = array();
-
-  switch ($delta) {
-    case 'cwrc_dtoc_edition_refresh':
-      $object = menu_get_object('islandora_object', 2);
-      $form_state['build_info']['args'] = array();
-      $form_state['islandora_object'] = $object;
-      $block['subject'] = t('Source documents status');
-      $block['content'] = drupal_build_form('cwrc_dtoc_edition_refresh_form', $form_state);
-      break;
-  }
-
-  return $block;
 }
 
 function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
@@ -358,17 +337,12 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
         }
       }
     }
-    else {
-      $form['documents_status']['no_update'] = array(
-        '#markup' => t('<p>All sources included in <b>@label</b> are up to date.</p>', array(
-          '@label' => $object->label,
-        )),
-      );
-    }
   }
   $form['documents_status']['re_ingest'] = array(
     '#type' => 'submit',
     '#value' => t('Update edition'),
+    '#prefix' => '<div class="document-statuses--ingest-action">',
+    '#suffix' => '</div>',
     '#access' => $re_ingest,
   );
 

@@ -1,3 +1,9 @@
+#cwrc-dtoc-edition-refresh-form .document-statuses--ingest-action {
+  border-bottom: 1px solid #E1E1E1;
+  margin-bottom: 1em;
+  padding-bottom: 1em;
+}
+
 .form-item-lazy-load-trigger > .lazy-loader-trigger {
   display: none;
 }
@@ -5,10 +11,10 @@
   text-align: center;
 }
 .form-item-lazy-load-trigger > .ajax-progress .throbber {
-  background: transparent url(../images/loading-large.gif) no-repeat 0 center;
+  background: transparent url(../images/throbber-icon.svg) no-repeat 0 center;
   float: none;
-  height: 100px;
-  width: 100px;
+  height: 256px;
+  width: 256px;
   display: inline-block;
 }
 
