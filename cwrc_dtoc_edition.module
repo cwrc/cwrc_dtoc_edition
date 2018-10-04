@@ -250,6 +250,7 @@ function cwrc_dtoc_edition_block_view($delta = '') {
       $object = menu_get_object('islandora_object', 2);
       $form_state['build_info']['args'] = array();
       $form_state['islandora_object'] = $object;
+      $block['subject'] = t('Source documents status');
       $block['content'] = drupal_build_form('cwrc_dtoc_edition_refresh_form', $form_state);
       break;
   }
@@ -309,7 +310,9 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
     if ($documents_statuses = cwrc_dtoc_edition_refresh_get_documents_statuses($object['DTOC'])) {
       $re_ingest = TRUE;
       $form['documents_status']['update_intro'] = array(
-        '#markup' => t('<p>The following documents below have been updated:</p>'),
+        '#markup' => t('<p>The following sources of <b>@label</b> have been updated:</p>', array(
+          '@label' => $object->label,
+        )),
       );
       $collection_counter = 1;
       $collections_total = count($documents_statuses);
@@ -342,11 +345,14 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
             '#suffix' => '</li>',
             'label' => array(
               '#type' => 'item',
-              '#markup' => t('@label', array('@label' => $document_label)),
+              '#markup' => t('<a href="/islandora/object/@pid">@label</a>', array(
+                '@label' => $document_label,
+                '@pid' => $document_pid,
+              )),
             ),
             'pid' => array(
               '#type' => 'value',
-              '#value' => $document_label,
+              '#value' => $document_pid,
             ),
           );
         }
@@ -354,7 +360,7 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
     }
     else {
       $form['documents_status']['no_update'] = array(
-        '#markup' => t('<p>No document included in <b>@label</b> have an updated version.</p>', array(
+        '#markup' => t('<p>All sources included in <b>@label</b> are up to date.</p>', array(
           '@label' => $object->label,
         )),
       );
@@ -362,7 +368,7 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
   }
   $form['documents_status']['re_ingest'] = array(
     '#type' => 'submit',
-    '#value' => t('Re-Ingest'),
+    '#value' => t('Update edition'),
     '#access' => $re_ingest,
   );
 
