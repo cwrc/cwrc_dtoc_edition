@@ -29,7 +29,9 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, Abstract
   $form_state['cwrc_dtoc_edition_reveal_form'] = TRUE;
   // Adding needed ctools includes.
   _cwrc_dtoc_edition_reveal_form_add_ctools_includes();
+  $form['#attached']['js'][] = $path . '/js/ctools.js';
   $form['#attached']['js'][] = $path . '/js/dtoc_reveal_form.js';
+  $form['#attached']['css'][] = $path . '/css/ctools.css';
   $form['#attached']['css'][] = $path . '/css/dtoc_reveal_form.css';
 
   if ($object && $datastream) {
@@ -762,56 +764,6 @@ function cwrc_dtoc_edition_reveal_form_sources_collections_ajax_callback($form, 
 /**
  * Helper functions.
  */
-
-/**
- * Helper function to add all the ctools needed includes.
- */
-function _cwrc_dtoc_edition_reveal_form_add_ctools_includes() {
-  // Include the CTools tools that we need.
-  ctools_include('ajax');
-  ctools_include('modal');
-
-  // Add CTools' javascript to the page.
-  ctools_modal_add_js();
-
-  // Add our own style.
-  $ctools_style = _cwrc_dtoc_edition_reveal_form_get_ctools_form_js_style();
-  drupal_add_js($ctools_style, 'setting');
-}
-
-/**
- * Gets custom ctools js style.
- *
- * @return array
- *   Of custom styles.
- *
- * @throws \Exception
- */
-function _cwrc_dtoc_edition_reveal_form_get_ctools_form_js_style() {
-  // Create our own javascript that will be used to theme a modal.
-  return array(
-    'ctools-cwrc-dtoc-edition-style' => array(
-      'modalSize' => array(
-        'type' => 'fixed',
-        'width' => 500,
-        'height' => 300,
-        'addWidth' => 20,
-        'addHeight' => 15,
-      ),
-      'modalOptions' => array(
-        'opacity' => .5,
-        'background-color' => '#000',
-      ),
-      'animation' => 'fadeIn',
-      'modalTheme' => 'CToolsCWRCDtocEditionModal',
-      'throbber' => theme('image', array(
-        'path' => ctools_image_path('ajax-loader.gif', 'cwrc_dtoc_edition'),
-        'alt' => t('Loading...'),
-        'title' => t('Loading'),
-      )),
-    ),
-  );
-}
 
 /**
  * Populates user session with current datastream collections.

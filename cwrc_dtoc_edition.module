@@ -51,6 +51,18 @@ function cwrc_dtoc_edition_menu() {
     'access callback' => TRUE,
   );
 
+  $items['dtoc-edition/curator-id-update/%islandora_object/%/%ctools_js'] = array(
+    'title' => 'Curator update',
+    'title callback' => 'cwrc_dtoc_edition_ctools_modal_curator_update_title',
+    'title arguments' => array(2),
+    'page callback' => 'cwrc_dtoc_edition_ctools_modal_curator_update',
+    'page arguments' => array(2, 3, 4),
+    'access callback' => 'islandora_object_access',
+    'access arguments' => array(ISLANDORA_METADATA_EDIT, 2),
+    'file' => 'includes/dtoc_curator.update.inc',
+    'type' => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -60,7 +72,10 @@ function cwrc_dtoc_edition_menu() {
 function cwrc_dtoc_edition_theme($existing, $type, $theme, $path) {
   return array(
     'cwrc_dtoc_edition' => array(
-      'variables' => array('islandora_object' => NULL),
+      'variables' => array(
+        'islandora_object' => NULL,
+        'edit_access' => FALSE,
+      ),
       'pattern' => 'cwrc_dtoc_edition__',
       'template' => 'theme/cwrc-dtoc-edition',
       'file' => 'theme/cwrc_dtoc_edition.theme.inc',
@@ -230,7 +245,10 @@ function cwrc_dtoc_edition_cwrc_dtocCModel_islandora_view_object($object) {
   $datastream = !empty($object['DTOC']) ? $object['DTOC'] : NULL;
   $access = $datastream ? islandora_datastream_access(ISLANDORA_METADATA_EDIT, $datastream) : FALSE;
   $form['#access'] = $access;
-  $output = theme('cwrc_dtoc_edition', array('islandora_object' => $object));
+  $output = theme('cwrc_dtoc_edition', array(
+    'islandora_object' => $object,
+    'edit_access' => $access,
+  ));
   return array(
     'dtoc_iframe' => $output,
     'status_form' => $form,
@@ -376,7 +394,7 @@ function cwrc_dtoc_edition_refresh_form_submit(array $form, array &$form_state) 
   $object = $form_state['islandora_object'];
   $datastream = $object['DTOC'];
   module_load_include('inc', 'cwrc_dtoc_edition', 'includes/cwrc_dtoc_edition.documents_statuses');
-  $data = drupal_json_decode(drupal_json_encode((array) simplexml_load_string($datastream->content)));
+  $data = _cwrc_dtoc_edition_xml_content_to_array($datastream->content);
   $collections = cwrc_dtoc_edition_refresh_get_collections($data);
 
   // Setting a redirect.
@@ -511,8 +529,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
   if ($is_from_cwrc_dtoc_edition && !empty($corpus_configurations['copy_cwrc_edition']['search'])) {
     $pid = $corpus_configurations['copy_cwrc_edition']['search'];
     if (($dtoc_edition_object = islandora_object_load($pid)) && !empty($dtoc_edition_object['DTOC'])) {
-      $xml_arr = (array) simplexml_load_string($dtoc_edition_object['DTOC']->content);
-      $data = drupal_json_decode(drupal_json_encode($xml_arr));
+      $data = _cwrc_dtoc_edition_xml_content_to_array($dtoc_edition_object['DTOC']->content);
       $xpaths = !empty($data['corpusConfiguration']['xmlXpathExpressions']) ? $data['corpusConfiguration']['xmlXpathExpressions'] : array();
     }
     $context['results']['xml_xpaths_setup']['type'] = 'copy_cwrc_edition';
@@ -586,7 +603,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context
     // Adding title and subTitle based MODS datastream.
     if (($object = islandora_object_load($pid)) && !empty($object['MODS'])) {
       $mods_datastream = $object['MODS'];
-      $mods_data = drupal_json_decode(drupal_json_encode((array) simplexml_load_string($mods_datastream->content)));
+      $mods_data = _cwrc_dtoc_edition_xml_content_to_array($mods_datastream->content);
       if (!empty($mods_data['titleInfo']['title'])) {
         $parameters['title'] = $mods_data['titleInfo']['title'];
       }
@@ -965,4 +982,181 @@ function _cwrc_dtoc_edition_set_batch_operations($object_id, array $collections,
   $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_data', array());
   $batch['operations'][] = array('cwrc_dtoc_edition_reveal_form_batch_generate_datastream_content', array($object_id));
   batch_set($batch);
+}
+
+/**
+ * Helper function to add all the ctools needed includes.
+ */
+function _cwrc_dtoc_edition_reveal_form_add_ctools_includes($width = 500, $height = 255) {
+  // Include the CTools tools that we need.
+  ctools_include('ajax');
+  ctools_include('modal');
+
+  // Add CTools' javascript to the page.
+  ctools_modal_add_js();
+
+  // Add our own style.
+  $ctools_style = _cwrc_dtoc_edition_reveal_form_get_ctools_form_js_style($width, $height);
+  drupal_add_js($ctools_style, 'setting');
+}
+
+/**
+ * Gets custom ctools js style.
+ *
+ * @return array
+ *   Of custom styles.
+ *
+ * @throws \Exception
+ */
+function _cwrc_dtoc_edition_reveal_form_get_ctools_form_js_style($width = 500, $height = 300) {
+  // Create our own javascript that will be used to theme a modal.
+  return array(
+    'ctools-cwrc-dtoc-edition-style' => array(
+      'modalSize' => array(
+        'type' => 'fixed',
+        'width' => $width,
+        'height' => $height,
+        'addWidth' => 20,
+        'addHeight' => 15,
+      ),
+      'modalOptions' => array(
+        'opacity' => .5,
+        'background-color' => '#000',
+      ),
+      'animation' => 'fadeIn',
+      'modalTheme' => 'CToolsCWRCDtocEditionModal',
+      'throbber' => theme('image', array(
+        'path' => ctools_image_path('ajax-loader.gif', 'cwrc_dtoc_edition'),
+        'alt' => t('Loading...'),
+        'title' => t('Loading'),
+      )),
+    ),
+  );
+}
+
+/**
+ * Transforms the xml content to string.
+ *
+ * @param string $content
+ *   The xml content.
+ *
+ * @return array
+ *   The xml content as array.
+ */
+function _cwrc_dtoc_edition_xml_content_to_array($content) {
+  $xml_arr = (array) simplexml_load_string($content);
+  return drupal_json_decode(drupal_json_encode($xml_arr));
+}
+
+/**
+ * Prepares datastream content array to an array which can be used to generate a
+ * valid DToC datastream.
+ *
+ * @param array $xml_data
+ *   The datastream array content.
+ *
+ * @return array
+ *   Which can be used to generate a dtoc edition datastream.
+ */
+function _cwrc_dtoc_edition_prepare_datastream_content_array_for_xml_generation(array $xml_data) {
+  $xml_corpus_id_key = 1;
+  $xml_corpus_configure_key = 2;
+  $xml_xpaths_key = 3;
+  $xml_trombone_key = 4;
+  $data = array(
+    'name' => 'dtocEdition',
+    1 => array('name' => 'sources'),
+    2 => array('name' => 'corpusConfiguration'),
+  );
+
+  // Preparing sources.
+  $collection_counter = 1;
+  $collections = empty($xml_data['sources']['collection']['@attributes']) && count($xml_data['sources']['collection']) > 1 ? $xml_data['sources']['collection'] : $xml_data['sources'];
+  foreach ($collections as $collection) {
+    $data[1][$collection_counter] = array(
+      'name' => 'collection',
+      'attributes' => $collection['@attributes'],
+    );
+    $document_counter = 1;
+    $documents = !empty($collection['document']) ? $collection['document'] : array();
+    foreach ($documents as $document) {
+      $data[1][$collection_counter][$document_counter] = array(
+        'name' => 'document',
+        'attributes' => $document['@attributes'],
+      );
+      $document_counter++;
+    }
+    $collection_counter++;
+  }
+
+  // Setting up the corpus id.
+  $data[2][$xml_corpus_id_key] = array(
+    'name' => 'id',
+    'value' => $xml_data['corpusConfiguration']['id'],
+  );
+
+  // Trombone.
+  $trombone = !empty($xml_data['corpusConfiguration']['trombone']) ? $xml_data['corpusConfiguration']['trombone'] : array();
+  if ($trombone) {
+    $data[2][$xml_trombone_key] = array(
+      'name' => 'trombone',
+      'attributes' => $trombone['@attributes'],
+    );
+    // Adding corpus metadata from trombone.
+    $xml_data_counter = 1;
+    $corpus_metadata = $trombone['CorpusMetadata'];
+    $data[2][$xml_trombone_key][1] = array(
+      'name' => 'CorpusMetadata',
+    );
+    foreach ($corpus_metadata as $metadata_label => $metadata_value) {
+      if (is_string($metadata_value) || is_numeric($metadata_value)) {
+        $data[2][$xml_trombone_key][1][$xml_data_counter] = array(
+          'name' => $metadata_label,
+          'value' => $metadata_value,
+        );
+        $xml_data_counter++;
+      }
+      elseif ($metadata_label === 'languageCodes' && is_array($metadata_value)) {
+        // Dealing with language codes which is an array.
+        $data[2][$xml_trombone_key][1][$xml_data_counter] = array(
+          'name' => $metadata_label,
+        );
+        foreach ($metadata_value as $language_code) {
+          $data[2][$xml_trombone_key][1][$xml_data_counter][] = array(
+            'name' => 'language',
+            'value' => $language_code,
+          );
+        }
+        $xml_data_counter++;
+      }
+    }
+  }
+
+  // User settings.
+  $user_settings = $xml_data['corpusConfiguration']['userSettings'];
+  $data[2][$xml_corpus_configure_key] = array(
+    'name' => 'userSettings',
+    'attributes' => $user_settings['@attributes'],
+  );
+  if (!empty($user_settings['curation'])) {
+    $data[2][$xml_corpus_configure_key][1] = array(
+      'name' => 'curation',
+      'attributes' => $user_settings['curation']['@attributes'],
+    );
+  }
+
+  // Adding custom xml configuration provided.
+  $xml_data_counter = 1;
+  $data[2][$xml_xpaths_key] = array('name' => 'xmlXpathExpressions');
+  $xml_xpaths = !empty($xml_data['corpusConfiguration']['xmlXpathExpressions']) ? $xml_data['corpusConfiguration']['xmlXpathExpressions'] : array();
+  foreach ($xml_xpaths as $xml_xpath_label => $xml_xpath) {
+    $data[2][$xml_xpaths_key][$xml_data_counter] = array(
+      'name' => $xml_xpath_label,
+      'value' => $xml_xpath,
+    );
+    $xml_data_counter++;
+  }
+
+  ksort($data[2]);
+  return $data;
 }
