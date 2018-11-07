@@ -84,6 +84,26 @@ function cwrc_dtoc_edition_theme($existing, $type, $theme, $path) {
 }
 
 /**
+ * Implements hook_library_alter().
+ */
+function cwrc_dtoc_edition_library_alter(&$libraries, $module) {
+  if ($module !== 'system' || empty($libraries['drupal.states'])) {
+    return;
+  }
+
+  $path = current_path();
+  $target_url = 'manage/overview/ingest';
+  if (strpos($path, $target_url) === FALSE) {
+    return;
+  }
+
+  $settings = $libraries['drupal.states']['js']['misc/states.js'];
+  unset($libraries['drupal.states']['js']['misc/states.js']);
+  $new_path = drupal_get_path('module', 'cwrc_dtoc_edition') . '/js/states.js';
+  $libraries['drupal.states']['js'][$new_path] = $settings;
+}
+
+/**
  * Implements hook_islandora_required_objects().
  */
 function cwrc_dtoc_edition_islandora_required_objects(IslandoraTuque $connection) {
