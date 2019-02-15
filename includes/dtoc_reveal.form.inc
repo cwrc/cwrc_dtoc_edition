@@ -525,6 +525,12 @@ function _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform(arra
     '#type' => 'textfield',
     '#title' => t('Documents'),
     '#default_value' => $xml_documents,
+    '#required' => $is_custom_xpaths,
+    '#states' => array(
+      'required' => array(
+        array(':input[name="corpus_configuration[custom][optin]"]' => array('checked' => TRUE)),
+      ),
+    ),
   );
 
   $default_curation = !empty($default_configuration['userSettings']['curation']) ? $default_configuration['userSettings']['curation'] : array();
@@ -620,6 +626,9 @@ function cwrc_dtoc_edition_reveal_form_validate(array $form, array &$form_state)
     }
     if (!$has_xpath) {
       form_set_error('corpus_configuration][custom][options][xpaths', t('No xPath provided!'));
+    }
+    elseif (empty($options['xpaths']['xmldocuments'])) {
+      form_set_error('corpus_configuration][custom][options][xpaths][xmldocuments', t('Please configure the xPath for your documents (which will form the "chapters" of your DToC edition).'));
     }
   }
   elseif ($is_from_cwrc_dtoc_edition) {
@@ -777,7 +786,7 @@ function cwrc_dtoc_edition_reveal_form_sources_collections_ajax_callback($form, 
  *   The datastream content as array.
  */
 function _cwrc_dtoc_edition_reveal_form_populate_session_from_datastream(AbstractFedoraDatastream $datastream, array &$form_state) {
-  $data = drupal_json_decode(drupal_json_encode((array) simplexml_load_string($datastream->content)));
+  $data = _cwrc_dtoc_edition_xml_content_to_array($datastream->content);
   if (!empty($data['sources'])) {
     $collections = empty($data['sources']['collection']['@attributes']) && count($data['sources']['collection']) > 1 ? $data['sources']['collection'] : $data['sources'];
     foreach ($collections as $collection) {
