@@ -413,15 +413,15 @@ function cwrc_dtoc_edition_check_documents_status_form_ajax_callback(array $form
 function cwrc_dtoc_edition_refresh_form_submit(array $form, array &$form_state) {
   $object = $form_state['islandora_object'];
   $datastream = $object['DTOC'];
-  module_load_include('inc', 'cwrc_dtoc_edition', 'includes/cwrc_dtoc_edition.documents_statuses');
+
   $data = _cwrc_dtoc_edition_xml_content_to_array($datastream->content);
-  $collections = cwrc_dtoc_edition_refresh_get_collections($data);
+  $collections = _cwrc_dtoc_edition_get_collections_from_dtoc_xml_array($data);
 
   // Setting a redirect.
   $form_state['redirect'] = "islandora/object/{$object->id}";
 
   // Corpus configurations.
-  $corpus_configurations = cwrc_dtoc_edition_refresh_get_corpus_configurations($data);
+  $corpus_configurations = _cwrc_dtoc_edition_get_corpus_configurations_from_dtoc_xml_array($data);
 
   // Set the batch operations.
   _cwrc_dtoc_edition_set_batch_operations($object->id, $collections, $corpus_configurations);
@@ -819,6 +819,46 @@ function cwrc_dtoc_edition_reveal_form_batch_generate_datastream_content($pid, &
 }
 
 /**
+ * Implements hook_form_FORM_ID_alter() for xml_form_builder_datastream_form().
+ */
+function cwrc_dtoc_edition_form_xml_form_builder_datastream_form_alter(&$form, &$form_state, $form_id) {
+  if (empty($form_state['datastream']) || empty($form_state['association']['content_model']) || $form_state['association']['content_model'] !== CWRC_DTOC_EDITION_ISLANDORA_CONTENT_MODEL || empty($form_state['pid'])) {
+    return;
+  }
+  $form['update']['#submit'][] = 'cwrc_dtoc_edition_datastream_form_metadata_form_submit';
+}
+
+/**
+ * Submit callback to update DToC corpus metadata when MODS metadata updated.
+ *
+ * See cwrc_dtoc_edition_form_xml_form_builder_datastream_form_alter().
+ */
+function cwrc_dtoc_edition_datastream_form_metadata_form_submit(array $form, array &$form_state) {
+  $object = islandora_object_load($form_state['pid']);
+  $dtoc = $object['DTOC'];
+  $dtoc_data = _cwrc_dtoc_edition_xml_content_to_array($dtoc->content);
+  if (!empty($dtoc_data['corpusConfiguration']['trombone']['CorpusMetadata'])) {
+    $voyant_metadata = $dtoc_data['corpusConfiguration']['trombone']['CorpusMetadata'];
+    $title = $voyant_metadata['title'];
+    $sub_title = $voyant_metadata['subTitle'];
+    $mods = $object['MODS'];
+    $mods_data = _cwrc_dtoc_edition_xml_content_to_array($mods->content);
+    if ($mods_data['titleInfo']['title'] !== $title || $mods_data['titleInfo']['subTitle'] !== $sub_title) {
+      // Regenerate the voyant corpus since the title or the sub title changed.
+      // Getting the collections.
+      $collections = _cwrc_dtoc_edition_get_collections_from_dtoc_xml_array($dtoc_data);
+      // Getting corpus configurations.
+      $corpus_configurations = _cwrc_dtoc_edition_get_corpus_configurations_from_dtoc_xml_array($dtoc_data);
+
+      // Set the batch operations.
+      _cwrc_dtoc_edition_set_batch_operations($object->id, $collections, $corpus_configurations);
+
+      drupal_set_message(t('The corpus title and sub title was successfully updated.'));
+    }
+  }
+}
+
+/**
  * Helper functions.
  */
 
@@ -948,6 +988,16 @@ function _cwrc_dtoc_edition_reveal_form_get_collection_selected_documents_files(
   return $collection_files;
 }
 
+/**
+ * Sets batch operations to create or regenerate the DToC voyant corpus.
+ *
+ * @param string $object_id
+ *   The object id.
+ * @param array $collections
+ *   The collections.
+ * @param array $corpus_configurations
+ *   The corpus configurations.
+ */
 function _cwrc_dtoc_edition_set_batch_operations($object_id, array $collections, array $corpus_configurations) {
   // Initializing the batch.
   $batch = array(
@@ -1179,4 +1229,78 @@ function _cwrc_dtoc_edition_prepare_datastream_content_array_for_xml_generation(
 
   ksort($data[2]);
   return $data;
+}
+
+/**
+ * Gets collections from an existing DToC xml array.
+ *
+ * @param array $data
+ *   The data.
+ *
+ * @return array
+ *   The collections.
+ */
+function _cwrc_dtoc_edition_get_collections_from_dtoc_xml_array(array $data) {
+  $saved_collections = empty($data['sources']['collection']['@attributes']) && count($data['sources']['collection']) > 1 ? $data['sources']['collection'] : $data['sources'];
+  $collections = array();
+  foreach ($saved_collections as $collection) {
+    $collection_pid = $collection['@attributes']['pid'];
+    $collections[$collection_pid] = array(
+      'pid' => $collection_pid,
+      'label' => $collection['@attributes']['label'],
+      'selected_files' => array(),
+    );
+    $documents = !empty($collection['document']) ? $collection['document'] : array();
+    if (!empty($collection['document']['@attributes']['pid'])) {
+      // This means only one document/object was selected for this collection.
+      $document_pid = $collection['document']['@attributes']['pid'];
+      $collections[$collection_pid]['selected_files'][$document_pid] = $collection['document']['@attributes']['label'];
+    }
+    else {
+      foreach ($documents as $document) {
+        $document_pid = $document['@attributes']['pid'];
+        $collections[$collection_pid]['selected_files'][$document_pid] = $document['@attributes']['label'];
+      }
+    }
+  }
+
+  return $collections;
+}
+
+/**
+ * Gets the corpus configuration from an existing DToC xml array.
+ *
+ * @param array $data
+ *   The data.
+ *
+ * @return array
+ *   The corpus configurations.
+ */
+function _cwrc_dtoc_edition_get_corpus_configurations_from_dtoc_xml_array(array $data) {
+  $corpus_configurations = array();
+  $user_settings = $data['corpusConfiguration']['userSettings'];
+  $is_custom_xpaths = $user_settings['@attributes']['type'] === 'custom';
+  if ($is_custom_xpaths) {
+    $corpus_configurations['custom']['optin'] = $is_custom_xpaths;
+    // Adding custom xpaths.
+    $corpus_configurations['custom']['options']['xpaths'] = array();
+    if (!empty($data['corpusConfiguration']['xmlXpathExpressions'])) {
+      foreach ($data['corpusConfiguration']['xmlXpathExpressions'] as $xpath_key => $xpath_expression) {
+        $xpath_key_form = strtolower(substr($xpath_key, 0, -5));
+        $corpus_configurations['custom']['options']['xpaths'][$xpath_key_form] = $xpath_expression;
+      }
+    }
+    // Curation information. @todo find a way to incorporate custom part.
+    $corpus_configurations['custom']['options']['curation'] = $user_settings['curation']['@attributes'];
+  }
+  else {
+    $is_from_cwrc_dtoc_edition = $user_settings['@attributes']['type'] === 'copy_cwrc_edition';
+    $corpus_configurations['copy_cwrc_edition']['optin'] = $is_from_cwrc_dtoc_edition;
+    $is_from_voyant_dtoc_edition = $user_settings['@attributes']['type'] === 'copy_dtoc_edition';
+    $corpus_configurations['copy_dtoc_edition']['optin'] = $is_from_voyant_dtoc_edition;
+    $value = !empty($user_settings['@attributes']['value']) ? $user_settings['@attributes']['value'] : '';
+    $corpus_configurations['copy_cwrc_edition']['search'] = $value;
+    $corpus_configurations['copy_dtoc_edition']['search'] = $value;
+  }
+  return $corpus_configurations;
 }
