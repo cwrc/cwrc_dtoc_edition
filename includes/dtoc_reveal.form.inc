@@ -791,10 +791,18 @@ function _cwrc_dtoc_edition_reveal_form_populate_session_from_datastream(Abstrac
     $collections = empty($data['sources']['collection']['@attributes']) && count($data['sources']['collection']) > 1 ? $data['sources']['collection'] : $data['sources'];
     foreach ($collections as $collection) {
       $collection_pid = $collection['@attributes']['pid'];
-      $documents = !empty($collection['document']) ? $collection['document'] : array();
       $selected_files = array();
-      foreach ($documents as $document) {
-        $selected_files[$document['@attributes']['pid']] = $document['@attributes']['label'];
+      if (!empty($collection['document']['@attributes']['pid'])) {
+        // This means only one document/object was selected for this collection.
+        $document_pid = $collection['document']['@attributes']['pid'];
+        $document_label = $collection['document']['@attributes']['label'];
+        $selected_files[$document_pid] = $document_label;
+      }
+      else {
+        $documents = !empty($collection['document']) ? $collection['document'] : [];
+        foreach ($documents as $document) {
+          $selected_files[$document['@attributes']['pid']] = $document['@attributes']['label'];
+        }
       }
 
       $form_state['selected_collection'][$collection_pid]['object_id'] = $collection_pid;
