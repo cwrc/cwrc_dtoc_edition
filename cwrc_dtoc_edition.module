@@ -160,7 +160,7 @@ function cwrc_dtoc_edition_xml_form_builder_form_associations() {
       'form_name' => '* CWRC born digital',
       'dsid' => 'MODS',
       'title_field' => array('titleInfo-information', 'titleInfo', 'title'),
-      'transform' => 'cleanup_mods.xsl',
+      'transform' => 'sites/default/libraries/islandora_cwrc_xslt_library/xslt/mods_to_dc.xsl',
       'self_transform' => 'cleanup_mods.xsl',
       'template' => FALSE,
     ),
@@ -843,7 +843,9 @@ function cwrc_dtoc_edition_datastream_form_metadata_form_submit(array $form, arr
     $sub_title = $voyant_metadata['subTitle'];
     $mods = $object['MODS'];
     $mods_data = _cwrc_dtoc_edition_xml_content_to_array($mods->content);
-    if ($mods_data['titleInfo']['title'] !== $title || $mods_data['titleInfo']['subTitle'] !== $sub_title) {
+    $mods_sub_title = !empty($mods_data['titleInfo']['subTitle']) ? $mods_data['titleInfo']['subTitle'] : '';
+    $mods_title = !empty($mods_data['titleInfo']['title']) ? $mods_data['titleInfo']['title'] : '';
+    if ($mods_title !== $title || $mods_sub_title !== $sub_title) {
       // Regenerate the voyant corpus since the title or the sub title changed.
       // Getting the collections.
       $collections = _cwrc_dtoc_edition_get_collections_from_dtoc_xml_array($dtoc_data);
@@ -1250,13 +1252,13 @@ function _cwrc_dtoc_edition_get_collections_from_dtoc_xml_array(array $data) {
       'label' => $collection['@attributes']['label'],
       'selected_files' => array(),
     );
-    $documents = !empty($collection['document']) ? $collection['document'] : array();
     if (!empty($collection['document']['@attributes']['pid'])) {
       // This means only one document/object was selected for this collection.
       $document_pid = $collection['document']['@attributes']['pid'];
       $collections[$collection_pid]['selected_files'][$document_pid] = $collection['document']['@attributes']['label'];
     }
     else {
+      $documents = !empty($collection['document']) ? $collection['document'] : array();
       foreach ($documents as $document) {
         $document_pid = $document['@attributes']['pid'];
         $collections[$collection_pid]['selected_files'][$document_pid] = $document['@attributes']['label'];
