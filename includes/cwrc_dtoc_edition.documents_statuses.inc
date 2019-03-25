@@ -5,12 +5,12 @@
  * Holds the dtoc reveal form.
  */
 
-function cwrc_dtoc_edition_refresh_get_documents_statuses(AbstractFedoraDatastream $dtoc_datastream = NULL) {
+function cwrc_dtoc_edition_refresh_get_documents_statuses(AbstractFedoraDatastream $dtoc_datastream = NULL, array $dtoc_arr = array()) {
   $statuses = array();
   $has_update = FALSE;
 
   if ($dtoc_datastream) {
-    $data = _cwrc_dtoc_edition_xml_content_to_array($dtoc_datastream->content);
+    $data = $dtoc_arr ? $dtoc_arr : _cwrc_dtoc_edition_xml_content_to_array($dtoc_datastream->content);
     $collections = empty($data['sources']['collection']['@attributes']) && count($data['sources']['collection']) > 1 ? $data['sources']['collection'] : $data['sources'];
 
     foreach ($collections as $collection) {

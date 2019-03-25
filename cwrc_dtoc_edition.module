@@ -75,6 +75,7 @@ function cwrc_dtoc_edition_theme($existing, $type, $theme, $path) {
       'variables' => array(
         'islandora_object' => NULL,
         'edit_access' => FALSE,
+        'dtoc_array' => array(),
       ),
       'pattern' => 'cwrc_dtoc_edition__',
       'template' => 'theme/cwrc-dtoc-edition',
@@ -258,16 +259,20 @@ function cwrc_dtoc_edition_datastream_edit_page_title(AbstractObject $object = N
  * Implements hook_cmodel_pid_islandora_view_object() for cwrc:dtocCModel.
  */
 function cwrc_dtoc_edition_cwrc_dtocCModel_islandora_view_object($object) {
+  $datastream = !empty($object['DTOC']) ? $object['DTOC'] : NULL;
+  $dtoc_array = $datastream ? _cwrc_dtoc_edition_xml_content_to_array($datastream->content) : array();
+
   // Check if any sources have been updated.
   $form_state['build_info']['args'] = array();
   $form_state['islandora_object'] = $object;
+  $form_state['dtoc_array'] = $dtoc_array;
   $form = drupal_build_form('cwrc_dtoc_edition_refresh_form', $form_state);
-  $datastream = !empty($object['DTOC']) ? $object['DTOC'] : NULL;
   $access = $datastream ? islandora_datastream_access(ISLANDORA_METADATA_EDIT, $datastream) : FALSE;
   $form['#access'] = $access;
   $output = theme('cwrc_dtoc_edition', array(
     'islandora_object' => $object,
     'edit_access' => $access,
+    'dtoc_array' => $dtoc_array,
   ));
   return array(
     'dtoc_iframe' => $output,
@@ -280,6 +285,8 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
   $module_name = 'cwrc_dtoc_edition';
   $path = drupal_get_path('module', $module_name);
   $lazy_load_trigger_class = 'lazy-loader-trigger';
+  $dtoc_arr = !empty($form_state['dtoc_array']) ? $form_state['dtoc_array'] : array();
+  $has_corpus_id = $dtoc_arr && !empty($dtoc_arr['corpusConfiguration']['id']);
 
   $values = !empty($form_state['values']) ? $form_state['values'] : array();
   $lazy_load_triggered = !empty($values['lazy_load_trigger']) ? (bool) $values['lazy_load_trigger'] : FALSE;
@@ -312,6 +319,9 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
       'css' => array($path . '/css/refresh.css'),
     ),
     '#default_value' => $lazy_load_triggered ? 1 : 0,
+    // Doing this will stop the lazy load checkbox to be triggered if no corpus
+    // id is found.
+    '#access' => $has_corpus_id,
   );
 
   $form['documents_status'] = array(
@@ -322,9 +332,10 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
   );
 
   $re_ingest = FALSE;
+  $submit_value = t('Update edition');
   if ($lazy_load_triggered && !empty($object['DTOC'])) {
     module_load_include('inc', 'cwrc_dtoc_edition', 'includes/cwrc_dtoc_edition.documents_statuses');
-    if ($documents_statuses = cwrc_dtoc_edition_refresh_get_documents_statuses($object['DTOC'])) {
+    if ($documents_statuses = cwrc_dtoc_edition_refresh_get_documents_statuses($object['DTOC'], $dtoc_arr)) {
       $re_ingest = TRUE;
       $form['documents_status']['update_intro'] = array(
         '#markup' => t('<p>The following sources of <b>@label</b> have been updated:</p>', array(
@@ -376,9 +387,19 @@ function cwrc_dtoc_edition_refresh_form($form, &$form_state) {
       }
     }
   }
+  elseif ($dtoc_arr && empty($dtoc_arr['corpusConfiguration']['id'])) {
+    $re_ingest = TRUE;
+    $submit_value = t('Generate corpus');
+    $form['documents_status']['update_intro'] = array(
+      '#markup' => t('<p>We are unable to retrieve the corpus from Voyant. Please refresh the page in a couple of minutes. If the problem persists, try to regenerate the corpus by <a href="@href" title="edit DToC datastream">editing its metadata or DToC datastream</a>. If this method fails, <a href="@bug" title="report the bug">contact CWRC</a>.</p>', array(
+        '@href' => '/islandora/object/' . $object->id . '/manage/datastreams/DTOC/edit',
+        '@bug' => '/content/bug-reporting',
+      )),
+    );
+  }
   $form['documents_status']['re_ingest'] = array(
     '#type' => 'submit',
-    '#value' => t('Update edition'),
+    '#value' => $submit_value,
     '#prefix' => '<div class="document-statuses--ingest-action">',
     '#suffix' => '</div>',
     '#access' => $re_ingest,
