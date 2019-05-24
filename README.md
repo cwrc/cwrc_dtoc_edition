@@ -5,7 +5,7 @@ CWRC Digital Table Of Context Edition
 To communicate with Voyant we use API endpoint(https://voyant-tools.org/trombone) trombone.
 
 ### Getting corpus id and metadata
-We make a *POST* HTTP Request with query parameters below:
+We make a *GET* HTTP Request with query parameters below:
 ```php
 $parameters = array(
   'palette' => 'default',
