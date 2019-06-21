@@ -88,8 +88,11 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, Abstract
   // Configure corpus container.
   $form['corpus_configuration'] = array(
     '#type' => 'fieldset',
-    '#tree' => TRUE,
     '#title' => t('Configure corpus'),
+    '#description' => t('If you leave the configuration fields blank, a default configuration will be applied. It will only work for source documents that are build on the <a href="@link" target="_blank" title="view the DToC document template">DToC Document Template</a>', array(
+      '@link' => 'https://cwrc.ca/templates/DToC_Document_Template.xml',
+    )),
+    '#tree' => TRUE,
     '#required' => TRUE,
     '#collapsible' => FALSE,
     '#weight' => -98,
@@ -611,7 +614,7 @@ function cwrc_dtoc_edition_reveal_form_validate(array $form, array &$form_state)
     form_set_error('sources][search_collections][search', t('No sources was selected'));
   }
 
-  // Validating custom xpaths if user opted in.
+  // Validating corpus configurations.
   $is_custom_xpaths = !empty($values['corpus_configuration']['custom']['optin']);
   $is_from_cwrc_dtoc_edition = !empty($values['corpus_configuration']['copy_cwrc_edition']['optin']);
   $is_from_voyant_dtoc_edition = !empty($values['corpus_configuration']['copy_dtoc_edition']['optin']);
@@ -663,9 +666,6 @@ function cwrc_dtoc_edition_reveal_form_validate(array $form, array &$form_state)
     if ($error_message) {
       form_set_error($copy_dtoc_edition_field, $error_message);
     }
-  }
-  else {
-    form_set_error('sources][search_collections][search', t('Currently testing xpaths configuration please provide them in order to submit the form.'));
   }
 }
 

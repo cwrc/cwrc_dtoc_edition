@@ -610,13 +610,18 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
     $context['results']['xml_xpaths_setup']['type'] = 'custom';
     $context['results']['xml_xpaths_setup']['curation'] = $corpus_configurations['custom']['options']['curation'];
   }
+  else {
+    // We assume the user didn't want to provide any customization so we use the
+    // dtoc inputFormat.
+    $context['results']['input_format'] = 'dtoc';
+  }
   $context['results']['xml_xpaths'] = $xpaths;
 }
 
 function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context) {
   $input = !empty($context['results']['dtoc_input_files_query']) ? $context['results']['dtoc_input_files_query'] : '';
   $xpaths = $context['results']['xml_xpaths'];
-  $input_format = '';
+  $input_format = !empty($context['results']['input_format']) ? $context['results']['input_format'] : '';
   $trombone_data = array();
   $context['message'] = t('Getting corpus metadata from Voyant...');
 
@@ -1063,7 +1068,7 @@ function _cwrc_dtoc_edition_set_batch_operations($object_id, array $collections,
     array($object_id),
   );
 
-  // Deleting generated datastream files after generating corpus metadata.
+  // Deleting generated datastream files after getting the corpus metadata.
   foreach ($collections as $collection_values) {
     $batch['operations'][] = array(
       'cwrc_dtoc_edition_reveal_form_batch_delete_datastream_files',
