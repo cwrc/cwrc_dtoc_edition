@@ -621,7 +621,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
 function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context) {
   $input = !empty($context['results']['dtoc_input_files_query']) ? $context['results']['dtoc_input_files_query'] : '';
   $xpaths = $context['results']['xml_xpaths'];
-  $input_format = !empty($context['results']['input_format']) ? $context['results']['input_format'] : '';
+  $input_format = !empty($context['results']['input_format']) ? $context['results']['input_format'] : 'dtoc';
   $trombone_data = array();
   $context['message'] = t('Getting corpus metadata from Voyant...');
 
@@ -636,7 +636,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context
       'inkeTags' => 'false',
       'suppressTools' => 'false',
       'input' => $input,
-      'tool' => 'corpus.CorpusMetadata',
+      'tool' => 'corpus.CorpusCreator',
     );
     if ($input_format) {
       $parameters['inputFormat'] = $input_format;
@@ -704,6 +704,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context
       $trombone_data = drupal_json_decode($result->data);
     }
   }
+
   $context['results']['trombone_data'] = $trombone_data;
 }
 
@@ -779,6 +780,24 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_da
       }
     }
   }
+  elseif ($trombone_data && !empty($trombone_data['stepEnabledCorpusCreator']['storedId'])) {
+    $data[2][$xml_corpus_id_key] = array(
+      'name' => 'id',
+      'value' => $trombone_data['stepEnabledCorpusCreator']['storedId'],
+    );
+
+    // Setting up other trombone stuff.
+    $data[2][$xml_trombone_key] = array(
+      'name' => 'trombone',
+      'attributes' => array(),
+    );
+    // Adding trombone data as attributes.
+    foreach ($trombone_data as $data_name => $data_value) {
+      if ($data_name !== 'stepEnabledCorpusCreator' && (is_string($data_value) || is_numeric($data_value))) {
+        $data[2][$xml_trombone_key]['attributes'][$data_name] = $data_value;
+      }
+    }
+  }
 
   // Adding the way xml xpaths configurations was applied.
   $corpus_configuration_setup = $context['results']['xml_xpaths_setup'];
@@ -823,6 +842,7 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_da
 function cwrc_dtoc_edition_reveal_form_batch_generate_datastream_content($pid, &$context) {
   $data = $context['results']['xml_data'];
   $context['message'] = t('Creating the DToC datastream...');
+
   if ($object = islandora_object_load($pid)) {
     $dsid = 'DTOC';
     $datastream = isset($object[$dsid]) ? $object[$dsid] : $object->constructDatastream($dsid, 'M');

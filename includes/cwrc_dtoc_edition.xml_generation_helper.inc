@@ -15,8 +15,8 @@
  *   The generated xml string.
  */
 function cwrc_dtoc_edition_get_xml(array $data) {
-  $doc = new DOMDocument();
-  $child = playground_generate_xml_element($doc, $data);
+  $doc = new \DOMDocument();
+  $child = _cwrc_dtoc_edition_generate_xml_element($doc, $data);
   if ($child) {
     $doc->appendChild($child);
   }
@@ -35,7 +35,7 @@ function cwrc_dtoc_edition_get_xml(array $data) {
  * @return bool|\DOMElement
  *   The element.
  */
-function playground_generate_xml_element(\DOMDocument $dom, array $data) {
+function _cwrc_dtoc_edition_generate_xml_element(\DOMDocument $dom, array $data) {
   if (empty($data['name'])) {
     return FALSE;
   }
@@ -57,7 +57,7 @@ function playground_generate_xml_element(\DOMDocument $dom, array $data) {
       continue;
     }
 
-    $child = playground_generate_xml_element($dom, $child_data);
+    $child = _cwrc_dtoc_edition_generate_xml_element($dom, $child_data);
     if ($child) {
       $element->appendChild($child);
     }
