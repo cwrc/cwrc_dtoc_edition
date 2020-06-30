@@ -169,6 +169,43 @@ function cwrc_dtoc_edition_xml_form_builder_form_associations() {
 }
 
 /**
+ * Implements hook_cmodel_pid_islandora_object_access().
+ */
+function cwrc_dtoc_edition_cwrc_dtocCModel_islandora_object_access($op, $object, $user) {
+  if ($op === ISLANDORA_VIEW_OBJECTS) {
+    $datastream = !empty($object['DTOC']) ? $object['DTOC'] : NULL;
+    $data = $datastream ? _cwrc_dtoc_edition_xml_content_to_array($datastream->content) : array();
+    $access = TRUE;
+
+    if (!empty($data['sources'])) {
+      $collections = empty($data['sources']['collection']['@attributes']) && count($data['sources']['collection']) > 1 ? $data['sources']['collection'] : $data['sources'];
+      foreach ($collections as $collection) {
+        if (!empty($collection['document']['@attributes']['pid'])) {
+          $document_pid = $collection['document']['@attributes']['pid'];
+          $document_object = islandora_object_load($document_pid);
+          $access = islandora_object_access($op, $document_object, $user);
+          if ($access !== NULL && empty($access)) {
+            return FALSE;
+          }
+        }
+        else {
+          $documents = !empty($collection['document']) ? $collection['document'] : array();
+          foreach ($documents as $document) {
+            $document_object = islandora_object_load($document['@attributes']['pid']);
+            $access = islandora_object_access($op, $document_object, $user);
+            if (!$access || empty($access)) {
+              return FALSE;
+            }
+          }
+        }
+      }
+    }
+    return $access;
+  }
+  return NULL;
+}
+
+/**
  * Implements hook_form_FORM_ID_alter() for islandora_ingest_form.
  */
 function cwrc_dtoc_edition_form_islandora_ingest_form_alter(&$form, &$form_state, $form_id) {
@@ -507,9 +544,20 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_collection_items_datastream
   $collection_files = _cwrc_dtoc_edition_reveal_form_get_collection_selected_documents_files($pid, $selected_documents);
   $context['results']['dtoc_input_files'][$pid] = $collection_files;
   $files_url_query = !empty($context['results']['dtoc_input_files_query']) ? $context['results']['dtoc_input_files_query'] : '';
+  if (empty($context['results']['dtoc_input_files_index'])) {
+    $max_index = 0;
+  }
+  else {
+    $index_files = $context['results']['dtoc_input_files_index'];
+    arsort($index_files);
+    $max_index = reset($index_files) + 1;
+  }
+
   foreach ($collection_files as $file_pid => $file) {
     $files_url_query .= $file['url'] . '%0A';
     $context['results']['documents_created_timestamp'][$file_pid] = $file['created_timestamp'];
+    $context['results']['dtoc_input_files_index'][$file_pid] = $max_index;
+    $max_index++;
   }
   $context['results']['dtoc_input_files_query'] = $files_url_query;
 }
@@ -615,12 +663,15 @@ function cwrc_dtoc_edition_reveal_form_batch_get_user_corpus_configurations(arra
     // dtoc inputFormat.
     $context['results']['input_format'] = 'dtoc';
   }
+  $context['results']['index_document_pid'] = $corpus_configurations['index_document_pid'];
   $context['results']['xml_xpaths'] = $xpaths;
 }
 
 function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context) {
   $input = !empty($context['results']['dtoc_input_files_query']) ? $context['results']['dtoc_input_files_query'] : '';
   $xpaths = $context['results']['xml_xpaths'];
+  $index_document_pid = $context['results']['index_document_pid'];
+  $dtoc_index_doc = isset($context['results']['dtoc_input_files_index'][$index_document_pid]) ? $context['results']['dtoc_input_files_index'][$index_document_pid] : 0;
   $input_format = !empty($context['results']['input_format']) ? $context['results']['input_format'] : 'dtoc';
   $trombone_data = array();
   $context['message'] = t('Getting corpus metadata from Voyant...');
@@ -637,6 +688,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context
       'suppressTools' => 'false',
       'input' => $input,
       'tool' => 'corpus.CorpusCreator',
+      'dtocIndexDoc' => $dtoc_index_doc,
     );
     if ($input_format) {
       $parameters['inputFormat'] = $input_format;
@@ -726,6 +778,7 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_da
   $xml_corpus_configure_key = 2;
   $xml_xpaths_key = 3;
   $xml_trombone_key = 4;
+  $xml_dtoc_index_doc_key = 5;
   $trombone_data = !empty($context['results']['trombone_data']) ? $context['results']['trombone_data'] : array();
   $data = !empty($context['results']['xml_data']) ? $context['results']['xml_data'] : array();
   $xml_xpaths = !empty($context['results']['xml_xpaths']) ? $context['results']['xml_xpaths'] : array();
@@ -833,6 +886,11 @@ function cwrc_dtoc_edition_reveal_form_batch_prepare_corpus_configuration_xml_da
     );
     $xml_data_counter++;
   }
+
+  $data[2][$xml_dtoc_index_doc_key] = array(
+    'name' => 'dtocIndexDocPid',
+    'value' => $context['results']['index_document_pid'],
+  );
 
   ksort($data[2]);
   // @todo add corpus configuration from the form.
@@ -1351,4 +1409,20 @@ function _cwrc_dtoc_edition_get_corpus_configurations_from_dtoc_xml_array(array 
     $corpus_configurations['copy_dtoc_edition']['search'] = $value;
   }
   return $corpus_configurations;
+}
+
+/**
+ * A helper function to get the array key first.
+ *
+ * @param $arr
+ *   The array.
+ *
+ * @return int|string|null
+ *   The key if available.
+ */
+function _cwrc_dtoc_edition_get_array_key_first($arr) {
+  foreach($arr as $key => $unused) {
+    return $key;
+  }
+  return NULL;
 }

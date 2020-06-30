@@ -53,14 +53,6 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, Abstract
     '#collapsible' => FALSE,
     '#weight' => -99,
   );
-  $form['sources']['collections'] = array(
-    '#type' => 'container',
-    '#attributes' => array(
-      'id' => 'cwrc-dtoc-edition-sources-collections',
-    ),
-    '#tree' => TRUE,
-  );
-  $form['sources']['collections'] += _cwrc_dtoc_edition_reveal_form_collections_subform($form_state);
 
   // Search collection sources container.
   $search_title = t('search CWRC collections');
@@ -84,6 +76,16 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, Abstract
     ),
     'actions' => _cwrc_dtoc_edition_reveal_form_get_search_collections_actions($form_state),
   );
+
+  // Selected Collections.
+  $form['sources']['collections'] = array(
+    '#type' => 'container',
+    '#attributes' => array(
+      'id' => 'cwrc-dtoc-edition-sources-collections',
+    ),
+    '#tree' => TRUE,
+  );
+  $form['sources']['collections'] += _cwrc_dtoc_edition_reveal_form_collections_subform($form_state, $datastream_data);
 
   // Configure corpus container.
   $form['corpus_configuration'] = array(
@@ -225,7 +227,7 @@ function cwrc_dtoc_edition_reveal_form(array $form, array &$form_state, Abstract
  * @return array
  *   The sub form structure.
  */
-function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state) {
+function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state, $datastream_data) {
   $subform = array();
   $collection_pid = !empty($form_state['updated_collection_pid']) ? $form_state['updated_collection_pid'] : '';
 
@@ -254,7 +256,7 @@ function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state) 
     ),
     '#ajax' => array(
       'callback' => 'cwrc_dtoc_edition_reveal_form_sources_collections_ajax_callback',
-      'wrapper' => 'cwrc-dtoc-edition--reveal-form--sources-collections-items-wrapper',
+      'wrapper' => 'cwrc-dtoc-edition-sources-collections',
       'effect' => 'fade',
     ),
   );
@@ -267,6 +269,7 @@ function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state) 
     '#tree' => TRUE,
   );
   if (!empty($form_state['selected_collection'])) {
+    $index_documents = array();
     $selected_collection_items = $form_state['selected_collection'];
     foreach ($selected_collection_items as $selected_collection_item) {
       $collection = islandora_object_load($selected_collection_item['object_id']);
@@ -274,9 +277,30 @@ function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state) 
         $pid = drupal_html_class($collection->id);
         $options = _cwrc_dtoc_edition_get_collection_pid_options($collection);
         $selected_document_keys = cwrc_dtoc_edition_get_selected_collection_files_from_session($collection->id);
+        $index_documents += $selected_document_keys;
         $subform['items'][$pid] = _cwrc_dtoc_edition_reveal_form_collections_subform_collection_item($collection, $selected_document_keys, $options);
       }
     }
+
+    if (!empty($datastream_data['corpusConfiguration']['dtocIndexDocPid'])) {
+      $default_index = $datastream_data['corpusConfiguration']['dtocIndexDocPid'];
+    }
+    else {
+      $default_index = _cwrc_dtoc_edition_get_array_key_first($index_documents);
+    }
+    $subform['index_document'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Index document'),
+      '#tree' => TRUE,
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+      'pid' => array(
+        '#title' => t('Please select an index document for this edition (optional)'),
+        '#type' => 'radios',
+        '#options' => $index_documents,
+        '#default_value' => $default_index,
+      ),
+    );
   }
 
   return $subform;
@@ -343,7 +367,7 @@ function _cwrc_dtoc_edition_reveal_form_collections_subform_collection_item(\Fed
         '#submit' => array('cwrc_dtoc_edition_reveal_form_collections_remove_item'),
         '#ajax' => array(
           'callback' => 'cwrc_dtoc_edition_reveal_form_sources_collections_ajax_callback',
-          'wrapper' => 'cwrc-dtoc-edition--reveal-form--sources-collections-items-wrapper',
+          'wrapper' => 'cwrc-dtoc-edition-sources-collections',
           'effect' => 'fade',
         ),
         '#limit_validation_errors' => array(
@@ -407,7 +431,7 @@ function _cwrc_dtoc_edition_reveal_form_get_search_collections_actions(array &$f
     ),
     '#ajax' => array(
       'callback' => 'cwrc_dtoc_edition_reveal_form_sources_collections_ajax_callback',
-      'wrapper' => 'cwrc-dtoc-edition--reveal-form--sources-collections-items-wrapper',
+      'wrapper' => 'cwrc-dtoc-edition-sources-collections',
     ),
     '#submit' => array('cwrc_dtoc_edition_reveal_form_sources_search_collections_add_full_submit'),
     '#validate' => array('cwrc_dtoc_edition_reveal_form_sources_search_collections_add_full_validate'),
@@ -473,6 +497,7 @@ function _cwrc_dtoc_edition_reveal_form_get_search_collections_actions(array &$f
  *   The subform structure.
  */
 function _cwrc_dtoc_edition_reveal_form_custom_corpus_configuration_subform(array &$form_state, $is_custom_xpaths = FALSE, array $default_datastream = array()) {
+  $values = !empty($form_state['values']) ? $form_state['values'] : [];
   $default_configuration = !empty($default_datastream['corpusConfiguration']) ? $default_datastream['corpusConfiguration'] : array();
   if ($is_custom_xpaths && !empty($default_configuration['xmlXpathExpressions'])) {
     $xml_xpath_expressions = $default_configuration['xmlXpathExpressions'];
@@ -735,10 +760,12 @@ function cwrc_dtoc_edition_reveal_form_submit(array $form, array &$form_state) {
   $values = $form_state['values'];
   $collections = $values['sources']['collections']['items'];
   $corpus_configuration = !empty($values['corpus_configuration']) ? $values['corpus_configuration'] : array();
+
   if (!empty($collections)) {
     $form_state['cwrc_dtoc_edition_reveal_ingested_object_id'] = $object_id;
     $form_state['cwrc_dtoc_edition_reveal_ingested_data']['collections'] = $collections;
     $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configuration'] = $corpus_configuration;
+    $form_state['cwrc_dtoc_edition_reveal_ingested_data']['corpus_configuration']['index_document_pid'] = $values['sources']['collections']['index_document']['pid'];
   }
 
   // Calling the submit batch from here in case this is an edit.
@@ -767,7 +794,7 @@ function cwrc_dtoc_edition_reveal_form_search_collections_actions_ajax_callback(
  * For sources collections.
  */
 function cwrc_dtoc_edition_reveal_form_sources_collections_ajax_callback($form, $form_state) {
-  return $form['sources']['collections']['items'];
+  return $form['sources']['collections'];
 }
 
 /**
