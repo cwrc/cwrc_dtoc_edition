@@ -282,10 +282,12 @@ function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state, 
       }
     }
 
+    $default_index = NULL;
     if (!empty($datastream_data['corpusConfiguration']['dtocIndexDocPid'])) {
       $default_index = $datastream_data['corpusConfiguration']['dtocIndexDocPid'];
     }
-    else {
+
+    if (!$default_index || !isset($index_documents[$default_index])) {
       $default_index = _cwrc_dtoc_edition_get_array_key_first($index_documents);
     }
     $subform['index_document'] = array(

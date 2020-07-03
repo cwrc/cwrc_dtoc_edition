@@ -13,18 +13,20 @@ $parameters = array(
   'suppressTools' => 'false',
   'input' => $input,
   'tool' => 'corpus.CorpusMetadata',
+  'dtocIndexDoc' => $dtoc_index_doc,
   'inputFormat' => '',
   'title' => $title,
   'subTitle' => $sub_title,
 );
 ```
-1. `$input` is the path of to file(s) generated from documents datastream content. Note that these files are deleted once the corpus metadata has been obtained.
-2. `$title` and `$sub_title` are extracted from the MODS datastream of the DToC edition being created.
-3. Other query parameters which are dynamically added are xpaths expressions.
+1. `$input` is the path of to file(s) generated from documents datastream content. Note that these files are deleted once the corpus metadata have been obtained.
+2. `$title` and `$sub_title` are extracted from the MODS datastream of the DToC edition being created by this module.
+3. `$dtoc_index_doc` is the document to be used by trombone for indexing purposes.
+4. Other query parameters which are dynamically added are xpaths expressions.
 
-Once a *POST* HTTP request is made and we get the result back from trombone we store the corpus id and metadata received
+Once a *POST* HTTP request is made, and we get the result back from trombone we store the corpus id and metadata received
 into the DToC datastream.
- 
+
  ### Getting documents metadata
  In order to retrieve some data such as `xmlAuthorXpath`, `xmlContentXpath`, `xmlDocumentsXpath` or `xmlTitleXpath` when
  given a full Voyant URL like `http://voyant-tools.org/dtoc/?corpus=e567f073b560f0e577583f9591cf595e&docId=9a0cf19e304cd9c6b3afad7ccb2cbe9d`,
