@@ -671,7 +671,7 @@ function cwrc_dtoc_edition_reveal_form_batch_get_corpus_metadata($pid, &$context
   $input = !empty($context['results']['dtoc_input_files_query']) ? $context['results']['dtoc_input_files_query'] : '';
   $xpaths = $context['results']['xml_xpaths'];
   $index_document_pid = $context['results']['index_document_pid'];
-  $dtoc_index_doc = isset($context['results']['dtoc_input_files_index'][$index_document_pid]) ? $context['results']['dtoc_input_files_index'][$index_document_pid] : 0;
+  $dtoc_index_doc = isset($context['results']['dtoc_input_files_index'][$index_document_pid]) ? $context['results']['dtoc_input_files_index'][$index_document_pid] : -1;
   $input_format = !empty($context['results']['input_format']) ? $context['results']['input_format'] : 'dtoc';
   $trombone_data = array();
   $context['message'] = t('Getting corpus metadata from Voyant...');

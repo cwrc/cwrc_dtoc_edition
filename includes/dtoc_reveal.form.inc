@@ -269,7 +269,7 @@ function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state, 
     '#tree' => TRUE,
   );
   if (!empty($form_state['selected_collection'])) {
-    $index_documents = array();
+    $index_documents = array(-1 => t('- None -'));
     $selected_collection_items = $form_state['selected_collection'];
     foreach ($selected_collection_items as $selected_collection_item) {
       $collection = islandora_object_load($selected_collection_item['object_id']);
@@ -282,14 +282,11 @@ function _cwrc_dtoc_edition_reveal_form_collections_subform(array &$form_state, 
       }
     }
 
-    $default_index = NULL;
+    $default_index = -1;
     if (!empty($datastream_data['corpusConfiguration']['dtocIndexDocPid'])) {
       $default_index = $datastream_data['corpusConfiguration']['dtocIndexDocPid'];
     }
 
-    if (!$default_index || !isset($index_documents[$default_index])) {
-      $default_index = _cwrc_dtoc_edition_get_array_key_first($index_documents);
-    }
     $subform['index_document'] = array(
       '#type' => 'fieldset',
       '#title' => t('Index document'),
